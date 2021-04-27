@@ -1158,14 +1158,35 @@ set_sndbuf:
 				       optlen, optname == SO_SNDTIMEO_OLD);
 		break;
 
-	case SO_ATTACH_FILTER: {
-		struct sock_fprog fprog;
+	case SO_ATTACH_FILTER:
+#ifdef CONFIG_CPU_CHERI
+		if (test_thread_flag(TIF_CHERIABI)) {
+			struct sock_fprog_cap cfprog;
+			struct sock_fprog fprog;
 
-		ret = copy_bpf_fprog_from_user(&fprog, optval, optlen);
-		if (!ret)
+			ret = -EINVAL;
+			if (optlen != sizeof(struct sock_fprog_cap))
+				break;
+
+			ret = -EFAULT;
+			if (copy_from_sockptr(&cfprog, optval, sizeof(cfprog)))
+				break;
+
+			fprog.len = cfprog.len;
+			fprog.filter = (struct sock_filter __user *)cheri_getaddress(cfprog.filter);
+
 			ret = sk_attach_filter(&fprog, sk);
+		} else 
+#endif
+		{
+			struct sock_fprog fprog;
+
+			ret = copy_bpf_fprog_from_user(&fprog, optval, optlen);
+			if (!ret)
+				ret = sk_attach_filter(&fprog, sk);
+		}
 		break;
-	}
+
 	case SO_ATTACH_BPF:
 		ret = -EINVAL;
 		if (optlen == sizeof(u32)) {
@@ -1179,14 +1200,35 @@ set_sndbuf:
 		}
 		break;
 
-	case SO_ATTACH_REUSEPORT_CBPF: {
-		struct sock_fprog fprog;
+	case SO_ATTACH_REUSEPORT_CBPF:
+#ifdef CONFIG_CPU_CHERI
+		if (test_thread_flag(TIF_CHERIABI)) {
+			struct sock_fprog_cap cfprog;
+			struct sock_fprog fprog;
 
-		ret = copy_bpf_fprog_from_user(&fprog, optval, optlen);
-		if (!ret)
+			ret = -EINVAL;
+			if (optlen != sizeof(struct sock_fprog_cap))
+				break;
+
+			ret = -EFAULT;
+			if (copy_from_sockptr(&cfprog, optval, sizeof(cfprog)))
+				break;
+
+			fprog.len = cfprog.len;
+			fprog.filter = (struct sock_filter __user *)cheri_getaddress(cfprog.filter);
+
 			ret = sk_reuseport_attach_filter(&fprog, sk);
+		} else
+#endif
+		{
+			struct sock_fprog fprog;
+
+			ret = copy_bpf_fprog_from_user(&fprog, optval, optlen);
+			if (!ret)
+				ret = sk_reuseport_attach_filter(&fprog, sk);
+		}
 		break;
-	}
+
 	case SO_ATTACH_REUSEPORT_EBPF:
 		ret = -EINVAL;
 		if (optlen == sizeof(u32)) {
