@@ -39,6 +39,10 @@
 #include <linux/rculist.h>
 #include <net/busy_poll.h>
 
+#ifdef CONFIG_CPU_CHERI
+#include <linux/cheri.h>
+#endif
+
 /*
  * LOCKING:
  * There are three level of locking required by epoll :
@@ -1686,7 +1690,14 @@ static int ep_send_events(struct eventpoll *ep,
 		if (!revents)
 			continue;
 
-		events = epoll_put_uevent(revents, epi->event.data, events);
+#ifdef CONFIG_CPU_CHERI
+		if (!test_thread_flag(TIF_CHERIABI)) {
+			events = epoll_put_uevent_nc(revents, epi->event.data, (void*)events);
+		} else
+#endif
+		{
+			events = epoll_put_uevent(revents, epi->event.data, events);
+		}
 		if (!events) {
 			list_add(&epi->rdllink, &txlist);
 			ep_pm_stay_awake(epi);
@@ -2178,9 +2189,26 @@ SYSCALL_DEFINE4(epoll_ctl, int, epfd, int, op, int, fd,
 {
 	struct epoll_event epds;
 
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI)) {
+		if (ep_op_has_event(op) &&
+		    cheri_copy_from_user(&epds, event, sizeof(struct epoll_event)))
+			return -EFAULT;
+	} else {
+		struct epoll_event_nc epds_nc;
+
+		if (ep_op_has_event(op) &&
+		    copy_from_user(&epds_nc, event, sizeof(struct epoll_event_nc)))
+			return -EFAULT;
+
+		epds.events = epds_nc.events;
+		epds.data = (uintcap_t)epds_nc.data;
+	}
+#else
 	if (ep_op_has_event(op) &&
 	    copy_from_user(&epds, event, sizeof(struct epoll_event)))
 		return -EFAULT;
+#endif
 
 	return do_epoll_ctl(epfd, op, fd, &epds, false);
 }
@@ -2201,8 +2229,16 @@ static int do_epoll_wait(int epfd, struct epoll_event __user *events,
 		return -EINVAL;
 
 	/* Verify that the area passed by the user is writeable */
-	if (!access_ok(events, maxevents * sizeof(struct epoll_event)))
-		return -EFAULT;
+#ifdef CONFIG_CPU_CHERI
+	if (!test_thread_flag(TIF_CHERIABI)) {
+		if (!access_ok(events, maxevents * sizeof(struct epoll_event_nc)))
+			return -EFAULT;
+	} else
+#endif
+	{
+		if (!access_ok(events, maxevents * sizeof(struct epoll_event)))
+			return -EFAULT;
+	}
 
 	/* Get the "struct file *" for the eventpoll file */
 	f = fdget(epfd);
@@ -2365,11 +2401,13 @@ static int __init eventpoll_init(void)
 		EP_ITEM_COST;
 	BUG_ON(max_user_watches < 0);
 
+#ifndef CONFIG_CPU_CHERI
 	/*
 	 * We can have many thousands of epitems, so prevent this from
 	 * using an extra cache line on 64-bit (and smaller) CPUs
 	 */
 	BUILD_BUG_ON(sizeof(void *) <= 8 && sizeof(struct epitem) > 128);
+#endif
 
 	/* Allocates slab cache used to allocate "struct epitem" items */
 	epi_cache = kmem_cache_create("eventpoll_epi", sizeof(struct epitem),

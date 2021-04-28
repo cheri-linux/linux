@@ -74,10 +74,24 @@
 #define EPOLL_PACKED
 #endif
 
+#ifndef  __CHERI__
+typedef __u64 epoll_data_t;
+#else
+typedef uintcap_t epoll_data_t;
+#endif
+
 struct epoll_event {
+	__poll_t events;
+	epoll_data_t data;
+} EPOLL_PACKED;
+
+#ifdef  __CHERI__
+/* nc: non-cheri */
+struct epoll_event_nc {
 	__poll_t events;
 	__u64 data;
 } EPOLL_PACKED;
+#endif
 
 #ifdef CONFIG_PM_SLEEP
 static inline void ep_take_care_of_epollwakeup(struct epoll_event *epev)
