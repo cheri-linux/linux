@@ -66,6 +66,47 @@ unsigned long __cheri_copy_to_user(void __user *to, const void *from, unsigned l
 	return __asm_cheri_user_memcpy(to, from, n);
 }
 
+static inline unsigned long
+_cheri_copy_from_user(void *to, const void __user *from, unsigned long n)
+{
+	unsigned long res = n;
+	might_fault();
+	if (likely(access_ok(from, n))) {
+		kasan_check_write(to, n);
+		res = __asm_cheri_user_memcpy(to, from, n);
+	}
+	if (unlikely(res))
+		memset(to + (n - res), 0, res);
+	return res;
+}
+
+static inline unsigned long
+_cheri_copy_to_user(void __user *to, const void *from, unsigned long n)
+{
+	might_fault();
+	if (access_ok(to, n)) {
+		kasan_check_read(from, n);
+		n = __asm_cheri_user_memcpy(to, from, n);
+	}
+	return n;
+}
+
+unsigned long
+cheri_copy_from_user(void *to, const void __user *from, unsigned long n)
+{
+	if (likely(check_copy_size(to, n, false)))
+		n = _cheri_copy_from_user(to, from, n);
+	return n;
+}
+
+unsigned long
+cheri_copy_to_user(void __user *to, const void *from, unsigned long n)
+{
+	if (likely(check_copy_size(from, n, true)))
+		n = _cheri_copy_to_user(to, from, n);
+	return n;
+}
+
 void cheri_copy_regs(struct pt_regs *childregs, struct pt_regs *regs)
 {
 	struct pt_regs_cregs *cregs = (struct pt_regs_cregs*)regs;
