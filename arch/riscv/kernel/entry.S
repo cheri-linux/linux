@@ -357,8 +357,16 @@ check_syscall_nr:
 	jalr s0
 
 ret_from_syscall:
+#ifndef CONFIG_CPU_CHERI
 	/* Set user a0 to kernel a0 */
 	REG_S a0, PT_A0(sp)
+#else
+.option push
+.option capmode
+	/* Set user a0 to kernel a0 */
+	csc ca0, PT_A0(csp)
+.option pop
+#endif
 	/*
 	 * We didn't execute the actual syscall.
 	 * Seccomp already set return value for the current task pt_regs.

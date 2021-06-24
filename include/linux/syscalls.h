@@ -279,6 +279,58 @@ static inline int is_syscall_trace_event(struct trace_event_call *tp_event)
 #endif
 
 /*
+ * SYSCALL_CHERI_DEFINEx are CHERI-variants of SYSCALL_DEFINEx. They are used
+ * in hybrid kernels, to define syscalls, which return capabilities back to
+ * user-space.
+ */
+#ifdef CONFIG_CPU_CHERI
+#ifndef SYSCALL_CHERI_DEFINE0
+#define SYSCALL_CHERI_DEFINE0(sname)				\
+	SYSCALL_METADATA(_##sname, 0);				\
+	asmlinkage uintcap_t sys_##sname(void);			\
+	ALLOW_ERROR_INJECTION(sys_##sname, ERRNO);		\
+	asmlinkage uintcap_t sys_##sname(void)
+#endif /* SYSCALL_CHERI_DEFINE0 */
+
+#define SYSCALL_CHERI_DEFINE1(name, ...) SYSCALL_CHERI_DEFINEx(1, _##name, __VA_ARGS__)
+#define SYSCALL_CHERI_DEFINE2(name, ...) SYSCALL_CHERI_DEFINEx(2, _##name, __VA_ARGS__)
+#define SYSCALL_CHERI_DEFINE3(name, ...) SYSCALL_CHERI_DEFINEx(3, _##name, __VA_ARGS__)
+#define SYSCALL_CHERI_DEFINE4(name, ...) SYSCALL_CHERI_DEFINEx(4, _##name, __VA_ARGS__)
+#define SYSCALL_CHERI_DEFINE5(name, ...) SYSCALL_CHERI_DEFINEx(5, _##name, __VA_ARGS__)
+#define SYSCALL_CHERI_DEFINE6(name, ...) SYSCALL_CHERI_DEFINEx(6, _##name, __VA_ARGS__)
+
+#define SYSCALL_CHERI_DEFINEx(x, sname, ...)			\
+	SYSCALL_METADATA(sname, x, __VA_ARGS__)			\
+	__SYSCALL_CHERI_DEFINEx(x, sname, __VA_ARGS__)
+
+/*
+ * The asmlinkage stub is aliased to a function named __se_sys_*() which
+ * sign-extends 32-bit ints to longs whenever needed. The actual work is
+ * done within __do_sys_*().
+ */
+#ifndef __SYSCALL_CHERI_DEFINEx
+#define __SYSCALL_CHERI_DEFINEx(x, name, ...)					\
+	__diag_push();								\
+	__diag_ignore(GCC, 8, "-Wattribute-alias",				\
+		      "Type aliasing is used to sanitize syscall arguments");	\
+	asmlinkage uintcap_t sys##name(__MAP(x,__SC_DECL,__VA_ARGS__))		\
+		__attribute__((alias(__stringify(__se_sys##name))));		\
+	ALLOW_ERROR_INJECTION(sys##name, ERRNO);				\
+	static inline uintcap_t __do_sys##name(__MAP(x,__SC_DECL,__VA_ARGS__));	\
+	asmlinkage uintcap_t __se_sys##name(__MAP(x,__SC_LONG,__VA_ARGS__));	\
+	asmlinkage uintcap_t __se_sys##name(__MAP(x,__SC_LONG,__VA_ARGS__))	\
+	{									\
+		uintcap_t ret = __do_sys##name(__MAP(x,__SC_CAST,__VA_ARGS__));	\
+		__MAP(x,__SC_TEST,__VA_ARGS__);					\
+		__PROTECT(x, ret,__MAP(x,__SC_ARGS,__VA_ARGS__));		\
+		return ret;							\
+	}									\
+	__diag_pop();								\
+	static inline uintcap_t __do_sys##name(__MAP(x,__SC_DECL,__VA_ARGS__))
+#endif /* __SYSCALL_CHERI_DEFINEx */
+#endif
+
+/*
  * Called before coming back to user-mode. Returning to user-mode with an
  * address limit different than USER_DS can allow to overwrite kernel memory.
  */
