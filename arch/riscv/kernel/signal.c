@@ -103,7 +103,11 @@ static long restore_sigcontext(struct pt_regs *regs,
 	return err;
 }
 
+#ifdef CONFIG_CPU_CHERI
+SYSCALL_CHERI_DEFINE0(rt_sigreturn)
+#else
 SYSCALL_DEFINE0(rt_sigreturn)
+#endif
 {
 	struct pt_regs *regs = current_pt_regs();
 	struct rt_sigframe __user *frame;
