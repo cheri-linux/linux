@@ -50,6 +50,7 @@ typedef u32 bug_insn_t;
 #endif
 
 #ifdef CONFIG_GENERIC_BUG
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define __BUG_FLAGS(flags)					\
 do {								\
 	__asm__ __volatile__ (					\
@@ -65,6 +66,23 @@ do {								\
 		  "i" (flags),					\
 		  "i" (sizeof(struct bug_entry)));              \
 } while (0)
+#else
+#define __BUG_FLAGS(flags)					\
+do {								\
+	__asm__ __volatile__ (					\
+		"1:\n\t"					\
+			"ebreak\n"				\
+			".pushsection __bug_table,\"aw\"\n\t"	\
+		"2:\n\t"					\
+			__BUG_ENTRY "\n\t"			\
+			".org 2b + %3\n\t"                      \
+			".popsection"				\
+		:						\
+		: "C" (__FILE__), "i" (__LINE__),		\
+		  "i" (flags),					\
+		  "i" (sizeof(struct bug_entry)));              \
+} while (0)
+#endif /* CONFIG_CPU_CHERI_PURECAP */
 #else /* CONFIG_GENERIC_BUG */
 #define __BUG_FLAGS(flags) do {					\
 	__asm__ __volatile__ ("ebreak\n");			\

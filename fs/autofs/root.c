@@ -16,7 +16,7 @@ static int autofs_dir_unlink(struct inode *, struct dentry *);
 static int autofs_dir_rmdir(struct inode *, struct dentry *);
 static int autofs_dir_mkdir(struct user_namespace *, struct inode *,
 			    struct dentry *, umode_t);
-static long autofs_root_ioctl(struct file *, unsigned int, unsigned long);
+static long autofs_root_ioctl(struct file *, unsigned int, uintptr_t);
 #ifdef CONFIG_COMPAT
 static long autofs_root_compat_ioctl(struct file *,
 				     unsigned int, unsigned long);
@@ -911,7 +911,7 @@ static int autofs_root_ioctl_unlocked(struct inode *inode, struct file *filp,
 }
 
 static long autofs_root_ioctl(struct file *filp,
-			       unsigned int cmd, unsigned long arg)
+			       unsigned int cmd, uintptr_t arg)
 {
 	struct inode *inode = file_inode(filp);
 

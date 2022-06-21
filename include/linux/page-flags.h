@@ -191,13 +191,13 @@ enum pageflags {
 
 #ifndef __GENERATING_BOUNDS_H
 
-static inline unsigned long _compound_head(const struct page *page)
+static inline uintptr_t _compound_head(const struct page *page)
 {
-	unsigned long head = READ_ONCE(page->compound_head);
+	uintptr_t head = READ_ONCE(page->compound_head);
 
 	if (unlikely(head & 1))
 		return head - 1;
-	return (unsigned long)page;
+	return (uintptr_t)page;
 }
 
 #define compound_head(page)	((typeof(page))_compound_head(page))
@@ -591,7 +591,7 @@ __PAGEFLAG(Head, head, PF_ANY) CLEARPAGEFLAG(Head, head, PF_ANY)
 
 static __always_inline void set_compound_head(struct page *page, struct page *head)
 {
-	WRITE_ONCE(page->compound_head, (unsigned long)head + 1);
+	WRITE_ONCE(page->compound_head, (uintptr_t)head + 1);
 }
 
 static __always_inline void clear_compound_head(struct page *page)

@@ -23,7 +23,11 @@ struct ts_config;
 struct ts_state
 {
 	unsigned int		offset;
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	char			cb[48];
+#else
+	char			cb[80];
+#endif
 };
 
 /**

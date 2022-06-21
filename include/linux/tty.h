@@ -370,7 +370,7 @@ extern int tty_set_termios(struct tty_struct *tty, struct ktermios *kt);
 extern void tty_wakeup(struct tty_struct *tty);
 
 extern int tty_mode_ioctl(struct tty_struct *tty, struct file *file,
-			unsigned int cmd, unsigned long arg);
+			unsigned int cmd, uintptr_t arg);
 extern int tty_perform_flush(struct tty_struct *tty, unsigned long arg);
 extern struct tty_struct *tty_init_dev(struct tty_driver *driver, int idx);
 extern void tty_release_struct(struct tty_struct *tty, int idx);
@@ -409,12 +409,12 @@ static inline int tty_audit_push(void)
 
 /* tty_ioctl.c */
 extern int n_tty_ioctl_helper(struct tty_struct *tty, struct file *file,
-		       unsigned int cmd, unsigned long arg);
+		       unsigned int cmd, uintptr_t arg);
 
 /* vt.c */
 
 extern int vt_ioctl(struct tty_struct *tty,
-		    unsigned int cmd, unsigned long arg);
+		    unsigned int cmd, uintptr_t arg);
 
 extern long vt_compat_ioctl(struct tty_struct *tty,
 		     unsigned int cmd, unsigned long arg);

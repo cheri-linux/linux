@@ -322,6 +322,7 @@ static inline void __this_cpu_preempt_check(const char *op) { }
 	case 2: pscr_ret__ = stem##2(variable); break;			\
 	case 4: pscr_ret__ = stem##4(variable); break;			\
 	case 8: pscr_ret__ = stem##8(variable); break;			\
+	case 16: pscr_ret__ = stem##16(variable); break;		\
 	default:							\
 		__bad_size_call_parameter(); break;			\
 	}								\
@@ -337,6 +338,7 @@ static inline void __this_cpu_preempt_check(const char *op) { }
 	case 2: pscr2_ret__ = stem##2(variable, __VA_ARGS__); break;	\
 	case 4: pscr2_ret__ = stem##4(variable, __VA_ARGS__); break;	\
 	case 8: pscr2_ret__ = stem##8(variable, __VA_ARGS__); break;	\
+	case 16: pscr2_ret__ = stem##16(variable, __VA_ARGS__); break;	\
 	default:							\
 		__bad_size_call_parameter(); break;			\
 	}								\
@@ -364,6 +366,7 @@ static inline void __this_cpu_preempt_check(const char *op) { }
 	case 2: pdcrb_ret__ = stem##2(pcp1, pcp2, __VA_ARGS__); break;	\
 	case 4: pdcrb_ret__ = stem##4(pcp1, pcp2, __VA_ARGS__); break;	\
 	case 8: pdcrb_ret__ = stem##8(pcp1, pcp2, __VA_ARGS__); break;	\
+	case 16: pdcrb_ret__ = stem##16(pcp1, pcp2, __VA_ARGS__); break;\
 	default:							\
 		__bad_size_call_parameter(); break;			\
 	}								\
@@ -378,6 +381,7 @@ do {									\
 		case 2: stem##2(variable, __VA_ARGS__);break;		\
 		case 4: stem##4(variable, __VA_ARGS__);break;		\
 		case 8: stem##8(variable, __VA_ARGS__);break;		\
+		case 16: stem##16(variable, __VA_ARGS__);break;		\
 		default: 						\
 			__bad_size_call_parameter();break;		\
 	}								\

@@ -41,7 +41,7 @@
  *
  * Returns 0 on success, -errno on error.
  */
-long vfs_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+long vfs_ioctl(struct file *filp, unsigned int cmd, uintptr_t arg)
 {
 	int error = -ENOTTY;
 
@@ -774,7 +774,7 @@ static int ioctl_fssetxattr(struct file *file, void __user *argp)
  * please ensure they have compatible arguments in compat mode.
  */
 static int do_vfs_ioctl(struct file *filp, unsigned int fd,
-			unsigned int cmd, unsigned long arg)
+			unsigned int cmd, uintptr_t arg)
 {
 	void __user *argp = (void __user *)arg;
 	struct inode *inode = file_inode(filp);
@@ -857,7 +857,7 @@ static int do_vfs_ioctl(struct file *filp, unsigned int fd,
 	return -ENOIOCTLCMD;
 }
 
-SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
+SYSCALL_DEFINE3(ioctl, unsigned int, fd, unsigned int, cmd, uintptr_t, arg)
 {
 	struct fd f = fdget(fd);
 	int error;
@@ -902,7 +902,7 @@ out:
  * is incompatible between 32-bit and 64-bit architectures, a proper
  * handler is required instead of compat_ptr_ioctl.
  */
-long compat_ptr_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+long compat_ptr_ioctl(struct file *file, unsigned int cmd, uintptr_t arg)
 {
 	if (!file->f_op->unlocked_ioctl)
 		return -ENOIOCTLCMD;

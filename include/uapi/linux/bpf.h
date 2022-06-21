@@ -19,6 +19,7 @@
 
 /* ld/ldx fields */
 #define BPF_DW		0x18	/* double word (64-bit) */
+#define BPF_QW		0x19	// FIXCHERI: what is free value?
 #define BPF_ATOMIC	0xc0	/* atomic memory ops - op type in immediate */
 #define BPF_XADD	0xc0	/* exclusive add - legacy name */
 
@@ -6183,7 +6184,11 @@ struct bpf_spin_lock {
 };
 
 struct bpf_timer {
+#ifndef __CHERI__
 	__u64 :64;
+#else
+	uintptr_t timer;
+#endif
 	__u64 :64;
 } __attribute__((aligned(8)));
 

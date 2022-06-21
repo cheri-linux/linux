@@ -2,3 +2,7 @@
 
 obj-y += kernel/ mm/ net/
 obj-$(CONFIG_BUILTIN_DTB) += boot/dts/
+
+ifdef CONFIG_CPU_CHERI
+obj-y += cheri/
+endif

@@ -47,7 +47,7 @@
 static struct klist *knode_klist(struct klist_node *knode)
 {
 	return (struct klist *)
-		((unsigned long)knode->n_klist & KNODE_KLIST_MASK);
+		((uintptr_t)knode->n_klist & KNODE_KLIST_MASK);
 }
 
 static bool knode_dead(struct klist_node *knode)
@@ -66,7 +66,7 @@ static void knode_kill(struct klist_node *knode)
 {
 	/* and no knode should die twice ever either, see we're very humane */
 	WARN_ON(knode_dead(knode));
-	*(unsigned long *)&knode->n_klist |= KNODE_DEAD;
+	*(uintptr_t*)&knode->n_klist |= KNODE_DEAD;
 }
 
 /**

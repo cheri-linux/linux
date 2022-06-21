@@ -355,7 +355,7 @@ out_unlock:
 }
 
 static long dma_buf_ioctl(struct file *file,
-			  unsigned int cmd, unsigned long arg)
+			  unsigned int cmd, uintptr_t arg)
 {
 	struct dma_buf *dmabuf;
 	struct dma_buf_sync sync;

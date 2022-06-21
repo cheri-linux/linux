@@ -328,7 +328,7 @@ static long fcntl_rw_hint(struct file *file, unsigned int cmd,
 	}
 }
 
-static long do_fcntl(int fd, unsigned int cmd, unsigned long arg,
+static long do_fcntl(int fd, unsigned int cmd, uintptr_t arg,
 		struct file *filp)
 {
 	void __user *argp = (void __user *)arg;
@@ -454,7 +454,7 @@ static int check_fcntl_cmd(unsigned cmd)
 	return 0;
 }
 
-SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd, unsigned long, arg)
+SYSCALL_DEFINE3(fcntl, unsigned int, fd, unsigned int, cmd, uintptr_t, arg)
 {	
 	struct fd f = fdget_raw(fd);
 	long err = -EBADF;

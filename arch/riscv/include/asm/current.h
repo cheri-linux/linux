@@ -17,7 +17,11 @@
 
 struct task_struct;
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
 register struct task_struct *riscv_current_is_tp __asm__("tp");
+#else
+register struct task_struct *riscv_current_is_tp __asm__("ctp");
+#endif
 
 /*
  * This only works because "struct thread_info" is at offset 0 from "struct

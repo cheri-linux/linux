@@ -27,7 +27,11 @@
 #include <asm-generic/bitops/hweight.h>
 
 #if (BITS_PER_LONG == 64)
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define __AMO(op)	"amo" #op ".d"
+#else
+#define __AMO(op)	"camo" #op ".d"
+#endif
 #elif (BITS_PER_LONG == 32)
 #define __AMO(op)	"amo" #op ".w"
 #else
@@ -46,12 +50,48 @@
 	((__res & __mask) != 0);				\
 })
 
+#define __ptr_test_and_op_bit_ord(op, mod, nr, addr, ord)	\
+({								\
+	unsigned long __res, __mask;				\
+	__mask = BIT_MASK(nr);					\
+	__asm__ __volatile__ (					\
+		"0:\n\t"					\
+		"clr.c.aqrl ct0, %[addr]\n\t"			\
+		"and %[res], t0, %[mask]\n\t"			\
+		"bnez %[res], 1f\n\t"				\
+		"cgetaddr t1, ct0\n\t"				\
+		#op " t1, t1, %[mmask]\n\t"			\
+		"csetaddr ct0, ct0, t1\n\t"			\
+		"csc.c.aqrl t1, ct0, %[addr]\n\t"		\
+		"bnez t1, 0b\n\t"				\
+		"1:\n\t"					\
+		: [res] "=&r" (__res),				\
+		  [addr] "+A" (addr[BIT_WORD(nr)])		\
+		: [mmask] "r" (mod(__mask)),			\
+		  [mask] "r" (__mask)				\
+		: "ct0", "t1", "memory");			\
+	(__res != 0);						\
+})
+
 #define __op_bit_ord(op, mod, nr, addr, ord)			\
 	__asm__ __volatile__ (					\
 		__AMO(op) #ord " zero, %1, %0"			\
 		: "+A" (addr[BIT_WORD(nr)])			\
 		: "r" (mod(BIT_MASK(nr)))			\
 		: "memory");
+
+#define __ptr_op_bit_ord(op, mod, nr, addr, ord)		\
+	__asm__ __volatile__ (					\
+		"0:\n\t"					\
+		"clr.c.aqrl ct0, %[addr]\n\t"			\
+		"cgetaddr t1, ct0\n\t"				\
+		#op " t1, t1, %[mask]\n\t"			\
+		"csetaddr ct0, ct0, t1\n\t"			\
+		"csc.c.aqrl t1, ct0, %[addr]\n\t"		\
+		"bnez t1, 0b\n\t"				\
+		: [addr] "+A" (addr[BIT_WORD(nr)])		\
+		: [mask] "r" (mod(BIT_MASK(nr)))		\
+		: "ct0", "t1", "memory");
 
 #define __test_and_op_bit(op, mod, nr, addr) 			\
 	__test_and_op_bit_ord(op, mod, nr, addr, .aqrl)
@@ -158,6 +198,18 @@ static inline int test_and_set_bit_lock(
 	return __test_and_op_bit_ord(or, __NOP, nr, addr, .aq);
 }
 
+static inline int ptr_test_and_set_bit_lock(
+	unsigned long nr, volatile uintptr_t *addr)
+{
+#ifdef CONFIG_CPU_CHERI_PURECAP
+	if (((unsigned long)addr & (sizeof(uintptr_t) - 1)) == 0 &&
+		 cheri_gettag(*addr)) {
+		return __ptr_test_and_op_bit_ord(or, __NOP, nr, addr, .aq);
+	}
+#endif
+	return __test_and_op_bit_ord(or, __NOP, nr, addr, .aq);
+}
+
 /**
  * clear_bit_unlock - Clear a bit in memory, for unlock
  * @nr: the bit to set
@@ -168,6 +220,19 @@ static inline int test_and_set_bit_lock(
 static inline void clear_bit_unlock(
 	unsigned long nr, volatile unsigned long *addr)
 {
+	__op_bit_ord(and, __NOT, nr, addr, .rl);
+}
+
+static inline void ptr_clear_bit_unlock(
+	unsigned long nr, volatile uintptr_t *addr)
+{
+#ifdef CONFIG_CPU_CHERI_PURECAP
+	if (((unsigned long)addr & (sizeof(uintptr_t) - 1)) == 0 &&
+		 cheri_gettag(*addr)) {
+		__ptr_op_bit_ord(and, __NOT, nr, addr, .rl);
+		return;
+	}
+#endif
 	__op_bit_ord(and, __NOT, nr, addr, .rl);
 }
 
@@ -190,6 +255,12 @@ static inline void __clear_bit_unlock(
 	unsigned long nr, volatile unsigned long *addr)
 {
 	clear_bit_unlock(nr, addr);
+}
+
+static inline void __ptr_clear_bit_unlock(
+	unsigned long nr, volatile uintptr_t *addr)
+{
+	ptr_clear_bit_unlock(nr, addr);
 }
 
 #undef __test_and_op_bit

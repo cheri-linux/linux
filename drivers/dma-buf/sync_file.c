@@ -460,7 +460,7 @@ out:
 }
 
 static long sync_file_ioctl(struct file *file, unsigned int cmd,
-			    unsigned long arg)
+			    uintptr_t arg)
 {
 	struct sync_file *sync_file = file->private_data;
 

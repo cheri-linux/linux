@@ -18,7 +18,12 @@
 #include <linux/bug.h>
 #include <linux/mm_types.h>
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define __fix_to_virt(x)	(FIXADDR_TOP - ((x) << PAGE_SHIFT))
+#else
+#define __fix_to_virt(x)	cheri_long_data((FIXADDR_TOP - ((x) << PAGE_SHIFT)))
+#endif
+
 #define __virt_to_fix(x)	((FIXADDR_TOP - ((x)&PAGE_MASK)) >> PAGE_SHIFT)
 
 #ifndef __ASSEMBLY__
@@ -27,7 +32,7 @@
  * directly without translation, we catch the bug with a NULL-deference
  * kernel oops. Illegal ranges of incoming indices are caught too.
  */
-static __always_inline unsigned long fix_to_virt(const unsigned int idx)
+static __always_inline uintptr_t fix_to_virt(const unsigned int idx)
 {
 	BUILD_BUG_ON(idx >= __end_of_fixed_addresses);
 	return __fix_to_virt(idx);

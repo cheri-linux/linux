@@ -24,6 +24,8 @@
 #include <asm/switch_to.h>
 #include <asm/thread_info.h>
 
+#include <asm/cheri.h>
+
 register unsigned long gp_in_global __asm__("gp");
 
 #if defined(CONFIG_STACKPROTECTOR) && !defined(CONFIG_STACKPROTECTOR_PER_TASK)
@@ -50,28 +52,28 @@ void __show_regs(struct pt_regs *regs)
 		pr_cont(" ra : %pS\n", (void *)regs->ra);
 	}
 
-	pr_cont("epc : " REG_FMT " ra : " REG_FMT " sp : " REG_FMT "\n",
-		regs->epc, regs->ra, regs->sp);
+	pr_cont("epc: " REG_FMT " ra : " REG_FMT " sp : " REG_FMT "\n",
+		(unsigned long)regs->epc, (unsigned long)regs->ra, (unsigned long)regs->sp);
 	pr_cont(" gp : " REG_FMT " tp : " REG_FMT " t0 : " REG_FMT "\n",
-		regs->gp, regs->tp, regs->t0);
+		(unsigned long)regs->gp, (unsigned long)regs->tp, (unsigned long)regs->t0);
 	pr_cont(" t1 : " REG_FMT " t2 : " REG_FMT " s0 : " REG_FMT "\n",
-		regs->t1, regs->t2, regs->s0);
+		(unsigned long)regs->t1, (unsigned long)regs->t2, (unsigned long)regs->s0);
 	pr_cont(" s1 : " REG_FMT " a0 : " REG_FMT " a1 : " REG_FMT "\n",
-		regs->s1, regs->a0, regs->a1);
+		(unsigned long)regs->s1, (unsigned long)regs->a0, (unsigned long)regs->a1);
 	pr_cont(" a2 : " REG_FMT " a3 : " REG_FMT " a4 : " REG_FMT "\n",
-		regs->a2, regs->a3, regs->a4);
+		(unsigned long)regs->a2, (unsigned long)regs->a3, (unsigned long)regs->a4);
 	pr_cont(" a5 : " REG_FMT " a6 : " REG_FMT " a7 : " REG_FMT "\n",
-		regs->a5, regs->a6, regs->a7);
+		(unsigned long)regs->a5, (unsigned long)regs->a6, (unsigned long)regs->a7);
 	pr_cont(" s2 : " REG_FMT " s3 : " REG_FMT " s4 : " REG_FMT "\n",
-		regs->s2, regs->s3, regs->s4);
+		(unsigned long)regs->s2, (unsigned long)regs->s3, (unsigned long)regs->s4);
 	pr_cont(" s5 : " REG_FMT " s6 : " REG_FMT " s7 : " REG_FMT "\n",
-		regs->s5, regs->s6, regs->s7);
+		(unsigned long)regs->s5, (unsigned long)regs->s6, (unsigned long)regs->s7);
 	pr_cont(" s8 : " REG_FMT " s9 : " REG_FMT " s10: " REG_FMT "\n",
-		regs->s8, regs->s9, regs->s10);
+		(unsigned long)regs->s8, (unsigned long)regs->s9, (unsigned long)regs->s10);
 	pr_cont(" s11: " REG_FMT " t3 : " REG_FMT " t4 : " REG_FMT "\n",
-		regs->s11, regs->t3, regs->t4);
+		(unsigned long)regs->s11, (unsigned long)regs->t3, (unsigned long)regs->t4);
 	pr_cont(" t5 : " REG_FMT " t6 : " REG_FMT "\n",
-		regs->t5, regs->t6);
+		(unsigned long)regs->t5, (unsigned long)regs->t6);
 
 	pr_cont("status: " REG_FMT " badaddr: " REG_FMT " cause: " REG_FMT "\n",
 		regs->status, regs->badaddr, regs->cause);
@@ -95,8 +97,17 @@ void start_thread(struct pt_regs *regs, unsigned long pc,
 		 */
 		fstate_restore(current, regs);
 	}
+#ifndef CONFIG_CPU_CHERI
 	regs->epc = pc;
 	regs->sp = sp;
+#else
+	cheri_cleanup_regs(regs);
+	regs->epc = cheri_long(userspace_code_cap, pc);
+	regs->sp = cheri_long(regs->ddc, sp);
+	if (test_thread_flag(TIF_CHERIABI))
+		regs->epc = (uintcap_t)cheri_setflags((voidcap_t)regs->epc,
+							CHERI_FLAGS_CAP_MODE);
+#endif
 }
 
 void flush_thread(void)
@@ -123,27 +134,45 @@ int copy_thread(unsigned long clone_flags, unsigned long usp, unsigned long arg,
 		struct task_struct *p, unsigned long tls)
 {
 	struct pt_regs *childregs = task_pt_regs(p);
+	struct pt_regs *regs = current_pt_regs();
 
 	/* p->thread holds context to be restored by __switch_to() */
 	if (unlikely(p->flags & (PF_KTHREAD | PF_IO_WORKER))) {
 		/* Kernel thread */
 		memset(childregs, 0, sizeof(struct pt_regs));
+#ifndef CONFIG_CPU_CHERI
 		childregs->gp = gp_in_global;
+#else
+		childregs->gp = cheri_long(regs->ddc, gp_in_global);
+		childregs->ddc = regs->ddc;
+#endif
 		/* Supervisor/Machine, irqs on: */
 		childregs->status = SR_PP | SR_PIE;
-
-		p->thread.ra = (unsigned long)ret_from_kernel_thread;
+		p->thread.ra = (uintptr_t)ret_from_kernel_thread;
+#ifndef CONFIG_CPU_CHERI
 		p->thread.s[0] = usp; /* fn */
 		p->thread.s[1] = arg;
+#else
+		p->thread.s[0] = cheri_long(kernel_code_cap, usp); /* fn */
+		p->thread.s[1] = cheri_long(regs->ddc, arg);
+#endif
 	} else {
-		*childregs = *(current_pt_regs());
+#ifndef CONFIG_CPU_CHERI
+		*childregs = *regs;
 		if (usp) /* User fork */
 			childregs->sp = usp;
 		if (clone_flags & CLONE_SETTLS)
 			childregs->tp = tls;
+#else
+		cheri_copy_regs(childregs, regs);
+		if (usp) /* User fork */
+			childregs->sp = cheri_long(regs->ddc, usp);
+		if (clone_flags & CLONE_SETTLS)
+			childregs->tp = cheri_long(regs->ddc, tls);
+#endif
 		childregs->a0 = 0; /* Return value of fork() */
-		p->thread.ra = (unsigned long)ret_from_fork;
+		p->thread.ra = (uintptr_t)ret_from_fork;
 	}
-	p->thread.sp = (unsigned long)childregs; /* kernel sp */
+	p->thread.sp = (uintptr_t)childregs; /* kernel sp */
 	return 0;
 }

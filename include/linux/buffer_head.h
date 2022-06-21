@@ -138,11 +138,19 @@ BUFFER_FNS(Defer_Completion, defer_completion)
 #define bh_offset(bh)		((unsigned long)(bh)->b_data & ~PAGE_MASK)
 
 /* If we *know* page->private refers to buffer_heads */
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define page_buffers(page)					\
 	({							\
 		BUG_ON(!PagePrivate(page));			\
 		((struct buffer_head *)page_private(page));	\
 	})
+#else
+#define page_buffers(page)					\
+	({							\
+		BUG_ON(!PagePrivate(page));			\
+		((struct buffer_head *)cheri_long_data(page_private(page)));	\
+	})
+#endif
 #define page_has_buffers(page)	PagePrivate(page)
 
 void buffer_check_dirty_writeback(struct page *page,

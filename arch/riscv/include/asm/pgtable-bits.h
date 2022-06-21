@@ -14,9 +14,17 @@
 
 #define _PAGE_ACCESSED_OFFSET 6
 
+#ifdef CONFIG_CPU_CHERI
+#define _PAGE_LC	(1UL << 62)
+#define _PAGE_SC	(1UL << 63)
+#else
+#define _PAGE_LC	0
+#define _PAGE_SC	0
+#endif
+
 #define _PAGE_PRESENT   (1 << 0)
-#define _PAGE_READ      (1 << 1)    /* Readable */
-#define _PAGE_WRITE     (1 << 2)    /* Writable */
+#define _PAGE_READ      (1 << 1 | _PAGE_LC)    /* Readable */
+#define _PAGE_WRITE     (1 << 2 | _PAGE_SC)    /* Writable */
 #define _PAGE_EXEC      (1 << 3)    /* Executable */
 #define _PAGE_USER      (1 << 4)    /* User */
 #define _PAGE_GLOBAL    (1 << 5)    /* Global */
@@ -34,6 +42,12 @@
 #define _PAGE_PROT_NONE _PAGE_READ
 
 #define _PAGE_PFN_SHIFT 10
+
+#ifdef CONFIG_CPU_CHERI
+#define _PAGE_PFN_MASK	((1UL << 54) - 1)
+#else
+#define _PAGE_PFN_MASK	(-1UL)
+#endif
 
 /* Set of bits to preserve across pte_modify() */
 #define _PAGE_CHG_MASK  (~(unsigned long)(_PAGE_PRESENT | _PAGE_READ |	\

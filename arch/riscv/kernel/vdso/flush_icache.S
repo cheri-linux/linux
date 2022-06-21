@@ -17,6 +17,10 @@ ENTRY(__vdso_flush_icache)
 	fence.i
 	li a0, 0
 #endif
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	ret
+#else
+	cret
+#endif
 	.cfi_endproc
 ENDPROC(__vdso_flush_icache)

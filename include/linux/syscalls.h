@@ -120,10 +120,18 @@ enum landlock_rule_type;
 #define __TYPE_IS_L(t)	(__TYPE_AS(t, 0L))
 #define __TYPE_IS_UL(t)	(__TYPE_AS(t, 0UL))
 #define __TYPE_IS_LL(t) (__TYPE_AS(t, 0LL) || __TYPE_AS(t, 0ULL))
-#define __SC_LONG(t, a) __typeof(__builtin_choose_expr(__TYPE_IS_LL(t), 0LL, 0L)) a
+#ifndef CONFIG_CPU_CHERI_PURECAP
+#define __SC_UINTPTR(t, a) __typeof(__builtin_choose_expr(__TYPE_IS_LL(t), 0LL, 0L)) a
+#else
+#define __SC_UINTPTR(t, a) __SC_DECL(t, a)
+#endif
 #define __SC_CAST(t, a)	(__force t) a
 #define __SC_ARGS(t, a)	a
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define __SC_TEST(t, a) (void)BUILD_BUG_ON_ZERO(!__TYPE_IS_LL(t) && sizeof(t) > sizeof(long))
+#else
+#define __SC_TEST(t, a)	(void)0
+#endif
 
 #ifdef CONFIG_FTRACE_SYSCALLS
 #define __SC_STR_ADECL(t, a)	#a
@@ -242,8 +250,8 @@ static inline int is_syscall_trace_event(struct trace_event_call *tp_event)
 		__attribute__((alias(__stringify(__se_sys##name))));	\
 	ALLOW_ERROR_INJECTION(sys##name, ERRNO);			\
 	static inline long __do_sys##name(__MAP(x,__SC_DECL,__VA_ARGS__));\
-	asmlinkage long __se_sys##name(__MAP(x,__SC_LONG,__VA_ARGS__));	\
-	asmlinkage long __se_sys##name(__MAP(x,__SC_LONG,__VA_ARGS__))	\
+	asmlinkage long __se_sys##name(__MAP(x,__SC_UINTPTR,__VA_ARGS__));\
+	asmlinkage long __se_sys##name(__MAP(x,__SC_UINTPTR,__VA_ARGS__))\
 	{								\
 		long ret = __do_sys##name(__MAP(x,__SC_CAST,__VA_ARGS__));\
 		__MAP(x,__SC_TEST,__VA_ARGS__);				\
@@ -398,7 +406,7 @@ asmlinkage long sys_epoll_pwait2(int epfd, struct epoll_event __user *events,
 /* fs/fcntl.c */
 asmlinkage long sys_dup(unsigned int fildes);
 asmlinkage long sys_dup3(unsigned int oldfd, unsigned int newfd, int flags);
-asmlinkage long sys_fcntl(unsigned int fd, unsigned int cmd, unsigned long arg);
+asmlinkage long sys_fcntl(unsigned int fd, unsigned int cmd, uintptr_t arg);
 #if BITS_PER_LONG == 32
 asmlinkage long sys_fcntl64(unsigned int fd,
 				unsigned int cmd, unsigned long arg);
@@ -412,7 +420,7 @@ asmlinkage long sys_inotify_rm_watch(int fd, __s32 wd);
 
 /* fs/ioctl.c */
 asmlinkage long sys_ioctl(unsigned int fd, unsigned int cmd,
-				unsigned long arg);
+				uintptr_t arg);
 
 /* fs/ioprio.c */
 asmlinkage long sys_ioprio_set(int which, int who, int ioprio);
@@ -766,8 +774,8 @@ asmlinkage long sys_setrlimit(unsigned int resource,
 				struct rlimit __user *rlim);
 asmlinkage long sys_getrusage(int who, struct rusage __user *ru);
 asmlinkage long sys_umask(int mask);
-asmlinkage long sys_prctl(int option, unsigned long arg2, unsigned long arg3,
-			unsigned long arg4, unsigned long arg5);
+asmlinkage long sys_prctl(int option, uintptr_t arg2, uintptr_t arg3,
+			uintptr_t arg4, uintptr_t arg5);
 asmlinkage long sys_getcpu(unsigned __user *cpu, unsigned __user *node, struct getcpu_cache __user *cache);
 
 /* kernel/time.c */

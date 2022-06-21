@@ -273,7 +273,7 @@ static __poll_t rpmsg_eptdev_poll(struct file *filp, poll_table *wait)
 }
 
 static long rpmsg_eptdev_ioctl(struct file *fp, unsigned int cmd,
-			       unsigned long arg)
+			       uintptr_t arg)
 {
 	struct rpmsg_eptdev *eptdev = fp->private_data;
 
@@ -419,7 +419,7 @@ static int rpmsg_ctrldev_release(struct inode *inode, struct file *filp)
 }
 
 static long rpmsg_ctrldev_ioctl(struct file *fp, unsigned int cmd,
-				unsigned long arg)
+				uintptr_t arg)
 {
 	struct rpmsg_ctrldev *ctrldev = fp->private_data;
 	void __user *argp = (void __user *)arg;

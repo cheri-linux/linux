@@ -8,6 +8,9 @@
 #ifndef _ASM_RISCV_ATOMIC_H
 #define _ASM_RISCV_ATOMIC_H
 
+#define STR(x) #x
+#define XSTR(s) STR(s)
+
 #ifdef CONFIG_GENERIC_ATOMIC64
 # include <asm-generic/atomic64.h>
 #else
@@ -56,7 +59,7 @@ static __always_inline							\
 void arch_atomic##prefix##_##op(c_type i, atomic##prefix##_t *v)	\
 {									\
 	__asm__ __volatile__ (						\
-		"	amo" #asm_op "." #asm_type " zero, %1, %0"	\
+		"	" XSTR(AMO) "" #asm_op "." #asm_type " zero, %1, %0"	\
 		: "+A" (v->counter)					\
 		: "r" (I)						\
 		: "memory");						\
@@ -92,7 +95,7 @@ c_type arch_atomic##prefix##_fetch_##op##_relaxed(c_type i,		\
 {									\
 	register c_type ret;						\
 	__asm__ __volatile__ (						\
-		"	amo" #asm_op "." #asm_type " %1, %2, %0"	\
+		"	" XSTR(AMO) "" #asm_op "." #asm_type " %1, %2, %0"	\
 		: "+A" (v->counter), "=r" (ret)				\
 		: "r" (I)						\
 		: "memory");						\
@@ -103,7 +106,7 @@ c_type arch_atomic##prefix##_fetch_##op(c_type i, atomic##prefix##_t *v)	\
 {									\
 	register c_type ret;						\
 	__asm__ __volatile__ (						\
-		"	amo" #asm_op "." #asm_type ".aqrl  %1, %2, %0"	\
+		"	" XSTR(AMO) "" #asm_op "." #asm_type ".aqrl  %1, %2, %0"	\
 		: "+A" (v->counter), "=r" (ret)				\
 		: "r" (I)						\
 		: "memory");						\
@@ -202,10 +205,10 @@ static __always_inline int arch_atomic_fetch_add_unless(atomic_t *v, int a, int 
        int prev, rc;
 
 	__asm__ __volatile__ (
-		"0:	lr.w     %[p],  %[c]\n"
+		"0:" CAP"lr.w     %[p],  %[c]\n"
 		"	beq      %[p],  %[u], 1f\n"
 		"	add      %[rc], %[p], %[a]\n"
-		"	sc.w.rl  %[rc], %[rc], %[c]\n"
+		" " CAP"sc.w.rl  %[rc], %[rc], %[c]\n"
 		"	bnez     %[rc], 0b\n"
 		"	fence    rw, rw\n"
 		"1:\n"
@@ -223,10 +226,10 @@ static __always_inline s64 arch_atomic64_fetch_add_unless(atomic64_t *v, s64 a, 
        long rc;
 
 	__asm__ __volatile__ (
-		"0:	lr.d     %[p],  %[c]\n"
+		"0:"CAP"lr.d     %[p],  %[c]\n"
 		"	beq      %[p],  %[u], 1f\n"
 		"	add      %[rc], %[p], %[a]\n"
-		"	sc.d.rl  %[rc], %[rc], %[c]\n"
+		"  "CAP"sc.d.rl  %[rc], %[rc], %[c]\n"
 		"	bnez     %[rc], 0b\n"
 		"	fence    rw, rw\n"
 		"1:\n"
@@ -315,10 +318,10 @@ static __always_inline int arch_atomic_sub_if_positive(atomic_t *v, int offset)
        int prev, rc;
 
 	__asm__ __volatile__ (
-		"0:	lr.w     %[p],  %[c]\n"
+		"0:"CAP"lr.w     %[p],  %[c]\n"
 		"	sub      %[rc], %[p], %[o]\n"
 		"	bltz     %[rc], 1f\n"
-		"	sc.w.rl  %[rc], %[rc], %[c]\n"
+		"  "CAP"sc.w.rl  %[rc], %[rc], %[c]\n"
 		"	bnez     %[rc], 0b\n"
 		"	fence    rw, rw\n"
 		"1:\n"
@@ -337,10 +340,10 @@ static __always_inline s64 arch_atomic64_sub_if_positive(atomic64_t *v, s64 offs
        long rc;
 
 	__asm__ __volatile__ (
-		"0:	lr.d     %[p],  %[c]\n"
+		"0:"CAP"lr.d     %[p],  %[c]\n"
 		"	sub      %[rc], %[p], %[o]\n"
 		"	bltz     %[rc], 1f\n"
-		"	sc.d.rl  %[rc], %[rc], %[c]\n"
+		"  "CAP"sc.d.rl  %[rc], %[rc], %[c]\n"
 		"	bnez     %[rc], 0b\n"
 		"	fence    rw, rw\n"
 		"1:\n"

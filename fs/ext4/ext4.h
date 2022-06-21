@@ -3051,7 +3051,7 @@ extern int ext4_ind_remove_space(handle_t *handle, struct inode *inode,
 				 ext4_lblk_t start, ext4_lblk_t end);
 
 /* ioctl.c */
-extern long ext4_ioctl(struct file *, unsigned int, unsigned long);
+extern long ext4_ioctl(struct file *, unsigned int, uintptr_t);
 extern long ext4_compat_ioctl(struct file *, unsigned int, unsigned long);
 int ext4_fileattr_set(struct user_namespace *mnt_userns,
 		      struct dentry *dentry, struct fileattr *fa);

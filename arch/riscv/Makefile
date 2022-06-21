@@ -9,7 +9,7 @@
 #
 
 OBJCOPYFLAGS    := -O binary
-LDFLAGS_vmlinux :=
+LDFLAGS_vmlinux := -z notext
 ifeq ($(CONFIG_DYNAMIC_FTRACE),y)
 	LDFLAGS_vmlinux := --no-relax
 	KBUILD_CPPFLAGS += -DCC_USING_PATCHABLE_FUNCTION_ENTRY
@@ -20,15 +20,30 @@ ifeq ($(CONFIG_CMODEL_MEDLOW),y)
 KBUILD_CFLAGS_MODULE += -mcmodel=medany
 endif
 
+ifeq ($(LD),ld.lld)
+	KBUILD_CFLAGS += -mno-relax
+	KBUILD_AFLAGS += -mno-relax
+endif
+
 export BITS
 ifeq ($(CONFIG_ARCH_RV64I),y)
 	BITS := 64
 	UTS_MACHINE := riscv64
 
+ifneq ($(CONFIG_RISCV_ABI_CHERI_PURECAP),y)
 	KBUILD_CFLAGS += -mabi=lp64
 	KBUILD_AFLAGS += -mabi=lp64
 
 	KBUILD_LDFLAGS += -melf64lriscv
+else
+	KBUILD_CFLAGS += -mabi=l64pc128
+	KBUILD_CFLAGS += -Wincompatible-library-redeclaration
+	KBUILD_CFLAGS += -Wno-everything
+
+	KBUILD_AFLAGS += -mabi=l64pc128
+
+	KBUILD_LDFLAGS += -melf64lriscv
+endif
 else
 	BITS := 32
 	UTS_MACHINE := riscv32
@@ -52,6 +67,7 @@ riscv-march-$(CONFIG_ARCH_RV32I)	:= rv32ima
 riscv-march-$(CONFIG_ARCH_RV64I)	:= rv64ima
 riscv-march-$(CONFIG_FPU)		:= $(riscv-march-y)fd
 riscv-march-$(CONFIG_RISCV_ISA_C)	:= $(riscv-march-y)c
+riscv-march-$(CONFIG_RISCV_CHERI)	:= $(riscv-march-y)xcheri
 
 # Newer binutils versions default to ISA spec version 20191213 which moves some
 # instructions from the I extension to the Zicsr and Zifencei extensions.

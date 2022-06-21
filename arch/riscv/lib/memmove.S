@@ -6,6 +6,7 @@
 #include <linux/linkage.h>
 #include <asm/asm.h>
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
 SYM_FUNC_START(__memmove)
 SYM_FUNC_START_WEAK(memmove)
 	/*
@@ -314,3 +315,65 @@ return_from_memmove:
 
 SYM_FUNC_END(memmove)
 SYM_FUNC_END(__memmove)
+#else
+SYM_FUNC_START(__memmove)
+SYM_FUNC_START_WEAK(memmove)
+        cmove    ct0, ca0
+        cmove    ct1, ca1
+
+        beq     a0, a1, exit_memcpy
+        beqz    a2, exit_memcpy
+        srli    t2, a2, 0x2
+
+        slt     t3, a0, a1
+        beqz    t3, do_reverse
+
+        andi    a2, a2, 0x3
+        li      t4, 1
+        beqz    t2, byte_copy
+
+word_copy:
+        clw      t3, 0(ca1)
+        addi    t2, t2, -1
+        cincoffset    ca1, ca1, 4
+        csw      t3, 0(ca0)
+        cincoffset    ca0, ca0, 4
+        bnez    t2, word_copy
+        beqz    a2, exit_memcpy
+        j       byte_copy
+
+do_reverse:
+        cincoffset     ca0, ca0, a2
+        cincoffset     ca1, ca1, a2
+        andi    a2, a2, 0x3
+        li      t4, -1
+        beqz    t2, reverse_byte_copy
+
+reverse_word_copy:
+        cincoffset    ca1, ca1, -4
+        addi    t2, t2, -1
+        clw      t3, 0(ca1)
+        cincoffset    ca0, ca0, -4
+        csw      t3, 0(ca0)
+        bnez    t2, reverse_word_copy
+        beqz    a2, exit_memcpy
+
+reverse_byte_copy:
+        cincoffset    ca0, ca0, -1
+        cincoffset    ca1, ca1, -1
+
+byte_copy:
+        clb      t3, 0(ca1)
+        addi    a2, a2, -1
+        csb      t3, 0(ca0)
+        cincoffset     ca1, ca1, t4
+        cincoffset     ca0, ca0, t4
+        bnez    a2, byte_copy
+
+exit_memcpy:
+        cmove ca0, ct0
+        cmove ca1, ct1
+        cret
+SYM_FUNC_END(memmove)
+SYM_FUNC_END(__memmove)
+#endif

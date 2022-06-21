@@ -34,6 +34,23 @@ struct sigpending {
 	sigset_t signal;
 };
 
+#ifdef CONFIG_CPU_CHERI
+struct lsigaction {
+#ifndef __ARCH_HAS_IRIX_SIGACTION
+	__lsighandler_t	sa_handler;
+	unsigned long	sa_flags;
+#else
+	unsigned int	sa_flags;
+	__lsighandler_t	sa_handler;
+#endif
+
+#ifdef __ARCH_HAS_SA_RESTORER
+	__sigrestore_t sa_restorer;
+#endif
+	sigset_t	sa_mask;	/* mask last for extensibility */
+};
+#endif
+
 struct sigaction {
 #ifndef __ARCH_HAS_IRIX_SIGACTION
 	__sighandler_t	sa_handler;

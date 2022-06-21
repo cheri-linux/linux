@@ -1700,7 +1700,7 @@ static int first_packet_length(struct sock *sk)
  *	IOCTL requests applicable to the UDP protocol
  */
 
-int udp_ioctl(struct sock *sk, int cmd, unsigned long arg)
+int udp_ioctl(struct sock *sk, int cmd, uintptr_t arg)
 {
 	switch (cmd) {
 	case SIOCOUTQ:

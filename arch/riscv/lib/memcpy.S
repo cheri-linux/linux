@@ -6,6 +6,12 @@
 #include <linux/linkage.h>
 #include <asm/asm.h>
 
+#ifdef CONFIG_CPU_CHERI
+#include <asm/cherireg.h>
+#endif
+
+#ifndef CONFIG_CPU_CHERI_PURECAP
+
 /* void *memcpy(void *, const void *, size_t) */
 ENTRY(__memcpy)
 WEAK(memcpy)
@@ -105,4 +111,100 @@ WEAK(memcpy)
 	bltu a1, a3, 5b
 6:
 	ret
-END(__memcpy)
+ENDPROC(memcpy)
+ENDPROC(__memcpy)
+
+#ifdef CONFIG_CPU_CHERI
+
+/* aligned version */
+ENTRY(__cheri_memcpy_aligned)
+        beqz a2, return
+        and a2, a2, -CHERICAP_SIZE
+        add a2, a1, a2
+loop:
+        lc ct0, 0(a1)
+        sc ct0, 0(a0)
+        addi a1, a1, CHERICAP_SIZE
+        addi a0, a0, CHERICAP_SIZE
+        bne a1, a2, loop
+return:
+        jr      ra
+ENDPROC(__cheri_memcpy_aligned)
+
+#endif
+
+#else
+
+/* void *memcpy(void *, const void *, size_t) */
+ENTRY(__memcpy)
+WEAK(memcpy)
+	cmove ct6, ca0  /* Preserve return value */
+
+	/* get end address */
+	add a3, a1, a2
+
+	/* check if src and dst have same alignment */
+	andi t0, a0, CHERICAP_SIZE - 1
+	andi t1, a1, CHERICAP_SIZE - 1
+	/* if not same alignment then jump next */
+	bne t0, t1, 3f
+
+	/* align up src up */
+	addi t0, a1, CHERICAP_SIZE - 1
+	andi t0, t0, ~(CHERICAP_SIZE - 1)
+	/* get aligned end address */
+	andi t1, a3, ~(CHERICAP_SIZE - 1)
+	/*
+	 * a3: terminal address of source region
+	 * t0: lowest CHERICAP_SIZE-aligned address in source
+	 * t1: highest CHERICAP_SIZE-aligned address in source
+	 */
+	bgeu t0, t1, 3f
+	bgeu a1, t0, 2f
+1:
+	clbu t2, (ca1)
+	csb t2, (ca0)
+	cincoffset ca1, ca1, 1
+	cincoffset ca0, ca0, 1
+	bltu a1, t0, 1b
+2:
+	clc ct2, (ca1)
+	csc ct2, (ca0)
+	cincoffset ca1, ca1, CHERICAP_SIZE
+	cincoffset ca0, ca0, CHERICAP_SIZE
+	bltu a1, t1, 2b
+3:
+	bgeu a1, a3, 5f
+4:
+	clbu t2, (ca1)
+	csb t2, (ca0)
+	cincoffset ca1, ca1, 1
+	cincoffset ca0, ca0, 1
+	bltu a1, a3, 4b
+5:
+	cmove ca0, ct6
+	cret
+ENDPROC(memcpy)
+ENDPROC(__memcpy)
+
+#ifdef CONFIG_CPU_CHERI
+
+/* aligned version */
+/* void *memcpy(void *, const void *, size_t) */
+ENTRY(__cheri_memcpy_aligned)
+        beqz a2, return
+        and a2, a2, -CHERICAP_SIZE
+        add a2, a1, a2
+loop:
+        clc ct0, 0(ca1)
+        csc ct0, 0(ca0)
+        cincoffset ca1, ca1, CHERICAP_SIZE
+        cincoffset ca0, ca0, CHERICAP_SIZE
+        bne a1, a2, loop
+return:
+	cret
+ENDPROC(__cheri_memcpy_aligned)
+
+#endif
+
+#endif

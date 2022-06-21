@@ -118,6 +118,13 @@ SECTIONS
 	_data = .;
 
 	RW_DATA(L1_CACHE_BYTES, PAGE_SIZE, THREAD_ALIGN)
+
+#ifdef CONFIG_CPU_CHERI_PURECAP
+	.captable : {
+		*(.captable)
+	}
+#endif
+
 	.sdata : {
 		__global_pointer$ = . + 0x800;
 		*(.sdata*)

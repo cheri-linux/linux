@@ -1397,7 +1397,9 @@ static u64 ___bpf_prog_run(u64 *regs, const struct bpf_insn *insn)
 #define CONT_JMP ({ insn++; goto select_insn; })
 
 select_insn:
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	goto *jumptable[insn->code];
+#endif
 
 	/* Explicitly mask the register-based shift amounts with 63 or 31
 	 * to avoid undefined behavior. Normally this won't affect the

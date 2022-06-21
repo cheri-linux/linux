@@ -318,7 +318,7 @@ static nodemask_t slab_nodes;
  * random number.
  */
 static inline void *freelist_ptr(const struct kmem_cache *s, void *ptr,
-				 unsigned long ptr_addr)
+				 uintptr_t ptr_addr)
 {
 #ifdef CONFIG_SLAB_FREELIST_HARDENED
 	/*
@@ -331,8 +331,8 @@ static inline void *freelist_ptr(const struct kmem_cache *s, void *ptr,
 	 * calls get_freepointer() with an untagged pointer, which causes the
 	 * freepointer to be restored incorrectly.
 	 */
-	return (void *)((unsigned long)ptr ^ s->random ^
-			swab((unsigned long)kasan_reset_tag((void *)ptr_addr)));
+	return (void *)((uintptr_t)ptr ^ s->random ^
+			swab((uintptr_t)kasan_reset_tag((void *)ptr_addr)));
 #else
 	return ptr;
 #endif
@@ -342,8 +342,8 @@ static inline void *freelist_ptr(const struct kmem_cache *s, void *ptr,
 static inline void *freelist_dereference(const struct kmem_cache *s,
 					 void *ptr_addr)
 {
-	return freelist_ptr(s, (void *)*(unsigned long *)(ptr_addr),
-			    (unsigned long)ptr_addr);
+	return freelist_ptr(s, (void *)*(uintptr_t *)(ptr_addr),
+			    (uintptr_t)ptr_addr);
 }
 
 static inline void *get_freepointer(struct kmem_cache *s, void *object)
@@ -359,27 +359,27 @@ static void prefetch_freepointer(const struct kmem_cache *s, void *object)
 
 static inline void *get_freepointer_safe(struct kmem_cache *s, void *object)
 {
-	unsigned long freepointer_addr;
+	uintptr_t freepointer_addr;
 	void *p;
 
 	if (!debug_pagealloc_enabled_static())
 		return get_freepointer(s, object);
 
 	object = kasan_reset_tag(object);
-	freepointer_addr = (unsigned long)object + s->offset;
+	freepointer_addr = (uintptr_t)object + s->offset;
 	copy_from_kernel_nofault(&p, (void **)freepointer_addr, sizeof(p));
 	return freelist_ptr(s, p, freepointer_addr);
 }
 
 static inline void set_freepointer(struct kmem_cache *s, void *object, void *fp)
 {
-	unsigned long freeptr_addr = (unsigned long)object + s->offset;
+	uintptr_t freeptr_addr = (uintptr_t)object + s->offset;
 
 #ifdef CONFIG_SLAB_FREELIST_HARDENED
 	BUG_ON(object == fp); /* naive detection of double free or corruption */
 #endif
 
-	freeptr_addr = (unsigned long)kasan_reset_tag((void *)freeptr_addr);
+	freeptr_addr = (uintptr_t)kasan_reset_tag((void *)freeptr_addr);
 	*(void **)freeptr_addr = freelist_ptr(s, fp, freeptr_addr);
 }
 
@@ -3212,7 +3212,11 @@ redo:
 out:
 	slab_post_alloc_hook(s, objcg, gfpflags, 1, &object, init);
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	return object;
+#else
+	return cheri_csetbounds(object, s->size);
+#endif
 }
 
 static __always_inline void *slab_alloc(struct kmem_cache *s,

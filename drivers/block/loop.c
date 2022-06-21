@@ -2498,7 +2498,7 @@ found:
 }
 
 static long loop_control_ioctl(struct file *file, unsigned int cmd,
-			       unsigned long parm)
+			       uintptr_t parm)
 {
 	switch (cmd) {
 	case LOOP_CTL_ADD:
@@ -2515,7 +2515,7 @@ static long loop_control_ioctl(struct file *file, unsigned int cmd,
 static const struct file_operations loop_ctl_fops = {
 	.open		= nonseekable_open,
 	.unlocked_ioctl	= loop_control_ioctl,
-	.compat_ioctl	= loop_control_ioctl,
+	.compat_ioctl	= (void*)loop_control_ioctl,
 	.owner		= THIS_MODULE,
 	.llseek		= noop_llseek,
 };

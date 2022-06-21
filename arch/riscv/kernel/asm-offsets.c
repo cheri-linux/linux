@@ -110,6 +110,9 @@ void asm_offsets(void)
 	OFFSET(PT_STATUS, pt_regs, status);
 	OFFSET(PT_BADADDR, pt_regs, badaddr);
 	OFFSET(PT_CAUSE, pt_regs, cause);
+#ifdef CONFIG_CPU_CHERI
+	OFFSET(PT_DDC, pt_regs, ddc);
+#endif
 
 	/*
 	 * THREAD_{F,X}* might be larger than a S-type offset can handle, but
@@ -313,4 +316,6 @@ void asm_offsets(void)
 	DEFINE(PT_SIZE_ON_STACK, ALIGN(sizeof(struct pt_regs), STACK_ALIGN));
 
 	OFFSET(KERNEL_MAP_VIRT_ADDR, kernel_mapping, virt_addr);
+	OFFSET(KERNEL_MAP_VA_PA_OFFSET, kernel_mapping, va_pa_offset);
+	OFFSET(KERNEL_MAP_VA_KERNEL_PA_OFFSET, kernel_mapping, va_kernel_pa_offset);
 }

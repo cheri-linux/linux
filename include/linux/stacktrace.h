@@ -34,7 +34,7 @@ unsigned int filter_irq_stacks(unsigned long *entries, unsigned int nr_entries);
  * Return:	True, if the entry was consumed or skipped
  *		False, if there is no space left to store
  */
-typedef bool (*stack_trace_consume_fn)(void *cookie, unsigned long addr);
+typedef bool (*stack_trace_consume_fn)(void *cookie, uintptr_t addr);
 /**
  * arch_stack_walk - Architecture specific function to walk the stack
  * @consume_entry:	Callback which is invoked by the architecture code for

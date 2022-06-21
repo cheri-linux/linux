@@ -2788,7 +2788,7 @@ static long usbdev_do_ioctl(struct file *file, unsigned int cmd,
 }
 
 static long usbdev_ioctl(struct file *file, unsigned int cmd,
-			unsigned long arg)
+			uintptr_t arg)
 {
 	int ret;
 

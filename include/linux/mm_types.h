@@ -93,7 +93,7 @@ struct page {
 			 * Used for swp_entry_t if PageSwapCache.
 			 * Indicates order in the buddy system if PageBuddy.
 			 */
-			unsigned long private;
+			uintptr_t private;
 		};
 		struct {	/* page_pool used by netstack */
 			/**
@@ -145,7 +145,7 @@ struct page {
 			};
 		};
 		struct {	/* Tail pages of compound page */
-			unsigned long compound_head;	/* Bit zero is set */
+			uintptr_t compound_head;	/* Bit zero is set */
 
 			/* First tail page only */
 			unsigned char compound_dtor;
@@ -154,15 +154,15 @@ struct page {
 			unsigned int compound_nr; /* 1 << compound_order */
 		};
 		struct {	/* Second tail page of compound page */
-			unsigned long _compound_pad_1;	/* compound_head */
+			uintptr_t _compound_pad_1;	/* compound_head */
 			atomic_t hpage_pinned_refcount;
 			/* For both global and memcg */
 			struct list_head deferred_list;
 		};
 		struct {	/* Page table pages */
-			unsigned long _pt_pad_1;	/* compound_head */
+			uintptr_t _pt_pad_1;	/* compound_head */
 			pgtable_t pmd_huge_pte; /* protected by page->ptl */
-			unsigned long _pt_pad_2;	/* mapping */
+			uintptr_t _pt_pad_2;	/* mapping */
 			union {
 				struct mm_struct *pt_mm; /* x86 pgds only */
 				atomic_t pt_frag_refcount; /* powerpc */
@@ -499,9 +499,9 @@ struct mm_struct {
 
 		spinlock_t arg_lock; /* protect the below fields */
 
-		unsigned long start_code, end_code, start_data, end_data;
-		unsigned long start_brk, brk, start_stack;
-		unsigned long arg_start, arg_end, env_start, env_end;
+		uintptr_t start_code, end_code, start_data, end_data;
+		uintptr_t start_brk, brk, start_stack;
+		uintptr_t arg_start, arg_end, env_start, env_end;
 
 		unsigned long saved_auxv[AT_VECTOR_SIZE]; /* for /proc/PID/auxv */
 
@@ -594,7 +594,7 @@ extern struct mm_struct init_mm;
 /* Pointer magic because the dynamic array size confuses some compilers. */
 static inline void mm_init_cpumask(struct mm_struct *mm)
 {
-	unsigned long cpu_bitmap = (unsigned long)mm;
+	uintptr_t cpu_bitmap = (uintptr_t)mm;
 
 	cpu_bitmap += offsetof(struct mm_struct, cpu_bitmap);
 	cpumask_clear((struct cpumask *)cpu_bitmap);

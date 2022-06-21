@@ -348,6 +348,22 @@ config RISCV_ISA_C
 
 	   If you don't know what to do here, say Y.
 
+config RISCV_CHERI
+	bool "Provide RISCV CHERI instructions support"
+	default n
+	select CPU_CHERI
+	select CPU_CHERI_HYBRID if !RISCV_ABI_CHERI_PURECAP
+	select CPU_CHERI_PURECAP if RISCV_ABI_CHERI_PURECAP
+	help
+	   Enable CHERI user space support
+
+config RISCV_ABI_CHERI_PURECAP
+	bool "ABI mandates 64bits long and 128bits capability pointer"
+	default n
+	depends on RISCV_CHERI
+	help
+	   Linux kernel is built as riscv purecap
+
 menu "supported PMU type"
 	depends on PERF_EVENTS
 

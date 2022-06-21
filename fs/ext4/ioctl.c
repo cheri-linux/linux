@@ -798,7 +798,7 @@ static int ext4_ioctl_get_es_cache(struct file *filp, unsigned long arg)
 	return error;
 }
 
-static int ext4_ioctl_checkpoint(struct file *filp, unsigned long arg)
+static int ext4_ioctl_checkpoint(struct file *filp, uintptr_t arg)
 {
 	int err = 0;
 	__u32 flags = 0;
@@ -1268,7 +1268,7 @@ resizefs_out:
 	}
 }
 
-long ext4_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
+long ext4_ioctl(struct file *filp, unsigned int cmd, uintptr_t arg)
 {
 	long ret;
 

@@ -239,7 +239,7 @@ FULL_PROXY_FUNC(write, ssize_t, filp,
 		ARGS(filp, buf, size, ppos));
 
 FULL_PROXY_FUNC(unlocked_ioctl, long, filp,
-		PROTO(struct file *filp, unsigned int cmd, unsigned long arg),
+		PROTO(struct file *filp, unsigned int cmd, uintptr_t arg),
 		ARGS(filp, cmd, arg));
 
 static __poll_t full_proxy_poll(struct file *filp,

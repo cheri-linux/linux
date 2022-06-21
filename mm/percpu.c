@@ -276,10 +276,10 @@ static unsigned long pcpu_unit_page_offset(unsigned int cpu, int page_idx)
 	return pcpu_unit_offsets[cpu] + (page_idx << PAGE_SHIFT);
 }
 
-static unsigned long pcpu_chunk_addr(struct pcpu_chunk *chunk,
+static void *pcpu_chunk_addr(struct pcpu_chunk *chunk,
 				     unsigned int cpu, int page_idx)
 {
-	return (unsigned long)chunk->base_addr +
+	return (void*)chunk->base_addr +
 	       pcpu_unit_page_offset(cpu, page_idx);
 }
 
@@ -1338,11 +1338,11 @@ static void pcpu_init_md_blocks(struct pcpu_chunk *chunk)
  * RETURNS:
  * Chunk serving the region at @tmp_addr of @map_size.
  */
-static struct pcpu_chunk * __init pcpu_alloc_first_chunk(unsigned long tmp_addr,
+static struct pcpu_chunk * __init pcpu_alloc_first_chunk(uintptr_t tmp_addr,
 							 int map_size)
 {
 	struct pcpu_chunk *chunk;
-	unsigned long aligned_addr, lcm_align;
+	uintptr_t aligned_addr, lcm_align;
 	int start_offset, offset_bits, region_size, region_bits;
 	size_t alloc_size;
 
@@ -2599,7 +2599,7 @@ void __init pcpu_setup_first_chunk(const struct pcpu_alloc_info *ai,
 	int *unit_map;
 	int group, unit, i;
 	int map_size;
-	unsigned long tmp_addr;
+	uintptr_t tmp_addr;
 	size_t alloc_size;
 
 #define PCPU_SETUP_BUG_ON(cond)	do {					\
@@ -2752,7 +2752,7 @@ void __init pcpu_setup_first_chunk(const struct pcpu_alloc_info *ai,
 	 * pcpu_first_chunk, will always point to the chunk that serves
 	 * the dynamic region.
 	 */
-	tmp_addr = (unsigned long)base_addr + static_size;
+	tmp_addr = (uintptr_t)base_addr + static_size;
 	map_size = ai->reserved_size ?: dyn_size;
 	chunk = pcpu_alloc_first_chunk(tmp_addr, map_size);
 
@@ -2760,7 +2760,7 @@ void __init pcpu_setup_first_chunk(const struct pcpu_alloc_info *ai,
 	if (ai->reserved_size) {
 		pcpu_reserved_chunk = chunk;
 
-		tmp_addr = (unsigned long)base_addr + static_size +
+		tmp_addr = (uintptr_t)base_addr + static_size +
 			   ai->reserved_size;
 		map_size = dyn_size;
 		chunk = pcpu_alloc_first_chunk(tmp_addr, map_size);

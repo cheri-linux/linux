@@ -185,7 +185,7 @@ static int uart_port_startup(struct tty_struct *tty, struct uart_state *state,
 {
 	struct uart_port *uport = uart_port_check(state);
 	unsigned long flags;
-	unsigned long page;
+	uintptr_t page;
 	int retval = 0;
 
 	if (uport->type == PORT_UNKNOWN)
@@ -325,7 +325,7 @@ static void uart_shutdown(struct tty_struct *tty, struct uart_state *state)
 	uart_port_unlock(uport, flags);
 
 	if (xmit_buf)
-		free_page((unsigned long)xmit_buf);
+		free_page((uintptr_t)xmit_buf);
 }
 
 /**
@@ -1380,7 +1380,7 @@ static int uart_set_iso7816_config(struct uart_port *port,
  * Called via sys_ioctl.  We can use spin_lock_irq() here.
  */
 static int
-uart_ioctl(struct tty_struct *tty, unsigned int cmd, unsigned long arg)
+uart_ioctl(struct tty_struct *tty, unsigned int cmd, uintptr_t arg)
 {
 	struct uart_state *state = tty->driver_data;
 	struct tty_port *port = &state->port;

@@ -37,8 +37,11 @@ void __iomem *ioremap_prot(phys_addr_t addr, size_t size, unsigned long prot)
 		free_vm_area(area);
 		return NULL;
 	}
-
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	return (void __iomem *)(vaddr + offset);
+#else
+	return (void __iomem *)cheri_long_data(vaddr + offset);
+#endif
 }
 EXPORT_SYMBOL(ioremap_prot);
 

@@ -71,11 +71,11 @@ static inline void eventpoll_release(struct file *file) {}
 #if defined(CONFIG_ARM) && defined(CONFIG_OABI_COMPAT)
 /* ARM OABI has an incompatible struct layout and needs a special handler */
 extern struct epoll_event __user *
-epoll_put_uevent(__poll_t revents, __u64 data,
+epoll_put_uevent(__poll_t revents, uintptr_t data,
 		 struct epoll_event __user *uevent);
 #else
 static inline struct epoll_event __user *
-epoll_put_uevent(__poll_t revents, __u64 data,
+epoll_put_uevent(__poll_t revents, uintptr_t data,
 		 struct epoll_event __user *uevent)
 {
 	if (__put_user(revents, &uevent->events) ||

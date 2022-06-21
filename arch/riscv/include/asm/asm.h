@@ -27,7 +27,17 @@
 #define SZREG		__REG_SEL(8, 4)
 #define LGREG		__REG_SEL(3, 2)
 
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 16
+#ifdef __ASSEMBLY__
+#define RISCV_PTR		.chericap
+#define RISCV_SZPTR		16
+#define RISCV_LGPTR		4
+#else
+#define RISCV_PTR		".chericap"
+#define RISCV_SZPTR		"16"
+#define RISCV_LGPTR		"4"
+#endif
+#elif __SIZEOF_POINTER__ == 8
 #ifdef __ASSEMBLY__
 #define RISCV_PTR		.dword
 #define RISCV_SZPTR		8
@@ -65,6 +75,18 @@
 #define RISCV_LGSHORT		__ASM_STR(1)
 #else
 #error "Unexpected __SIZEOF_SHORT__"
+#endif
+
+#ifndef CONFIG_CPU_CHERI_PURECAP
+#define AMO	amo
+#define CAP	""
+#define REGC	"r"
+#define JUMP(label, tmp)	"jump " #label ", " #tmp "\n"
+#else
+#define AMO	camo
+#define CAP	"c"
+#define REGC	"C"
+#define JUMP(label, tmp)	"cllc " #tmp ", " #label "\n cjr " #tmp "\n"
 #endif
 
 #endif /* _ASM_RISCV_ASM_H */

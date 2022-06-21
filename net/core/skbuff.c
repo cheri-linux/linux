@@ -1733,11 +1733,16 @@ int pskb_expand_head(struct sk_buff *skb, int nhead, int ntail,
 	} else {
 		skb_free_head(skb);
 	}
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	off = (data + nhead) - skb->head;
+	skb->data    += off;
+#else
+	off = nhead + (skb->data - skb->head);
+	skb->data     = data + off;
+#endif
 
 	skb->head     = data;
 	skb->head_frag = 0;
-	skb->data    += off;
 
 	skb_set_end_offset(skb, size);
 #ifdef NET_SKBUFF_DATA_USES_OFFSET

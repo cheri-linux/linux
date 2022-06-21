@@ -100,7 +100,11 @@ void ftrace_likely_update(struct ftrace_likely_data *f, int val,
  * the compiler that the inline asm absolutely may see the contents
  * of @ptr. See also: https://llvm.org/bugs/show_bug.cgi?id=15495
  */
+#ifndef CONFIG_CPU_CHERI_PURECAP
 # define barrier_data(ptr) __asm__ __volatile__("": :"r"(ptr) :"memory")
+#else
+# define barrier_data(ptr) __asm__ __volatile__("": :"C"(ptr) :"memory")
+#endif
 #endif
 
 /* workaround for GCC PR82365 if needed */

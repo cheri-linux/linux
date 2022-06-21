@@ -5413,18 +5413,18 @@ EXPORT_SYMBOL(__alloc_pages);
  * address cannot represent highmem pages. Use alloc_pages and then kmap if
  * you need to access high mem.
  */
-unsigned long __get_free_pages(gfp_t gfp_mask, unsigned int order)
+uintptr_t __get_free_pages(gfp_t gfp_mask, unsigned int order)
 {
 	struct page *page;
 
 	page = alloc_pages(gfp_mask & ~__GFP_HIGHMEM, order);
 	if (!page)
 		return 0;
-	return (unsigned long) page_address(page);
+	return (uintptr_t) page_address(page);
 }
 EXPORT_SYMBOL(__get_free_pages);
 
-unsigned long get_zeroed_page(gfp_t gfp_mask)
+uintptr_t get_zeroed_page(gfp_t gfp_mask)
 {
 	return __get_free_pages(gfp_mask | __GFP_ZERO, 0);
 }
@@ -5460,7 +5460,7 @@ void __free_pages(struct page *page, unsigned int order)
 }
 EXPORT_SYMBOL(__free_pages);
 
-void free_pages(unsigned long addr, unsigned int order)
+void free_pages(uintptr_t addr, unsigned int order)
 {
 	if (addr != 0) {
 		VM_BUG_ON(!virt_addr_valid((void *)addr));
@@ -5584,12 +5584,12 @@ void page_frag_free(void *addr)
 }
 EXPORT_SYMBOL(page_frag_free);
 
-static void *make_alloc_exact(unsigned long addr, unsigned int order,
+static void *make_alloc_exact(uintptr_t addr, unsigned int order,
 		size_t size)
 {
 	if (addr) {
-		unsigned long alloc_end = addr + (PAGE_SIZE << order);
-		unsigned long used = addr + PAGE_ALIGN(size);
+		uintptr_t alloc_end = addr + (PAGE_SIZE << order);
+		uintptr_t used = addr + PAGE_ALIGN(size);
 
 		split_page(virt_to_page((void *)addr), order);
 		while (used < alloc_end) {
@@ -5618,7 +5618,7 @@ static void *make_alloc_exact(unsigned long addr, unsigned int order,
 void *alloc_pages_exact(size_t size, gfp_t gfp_mask)
 {
 	unsigned int order = get_order(size);
-	unsigned long addr;
+	uintptr_t addr;
 
 	if (WARN_ON_ONCE(gfp_mask & __GFP_COMP))
 		gfp_mask &= ~__GFP_COMP;
@@ -8115,8 +8115,8 @@ unsigned long free_reserved_area(void *start, void *end, int poison, const char 
 	void *pos;
 	unsigned long pages = 0;
 
-	start = (void *)PAGE_ALIGN((unsigned long)start);
-	end = (void *)((unsigned long)end & PAGE_MASK);
+	start = (void *)PAGE_ALIGN((uintptr_t)start);
+	end = (void *)((uintptr_t)end & PAGE_MASK);
 	for (pos = start; pos < end; pos += PAGE_SIZE, pages++) {
 		struct page *page = virt_to_page(pos);
 		void *direct_map_addr;

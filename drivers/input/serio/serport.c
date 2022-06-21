@@ -208,7 +208,7 @@ static void serport_set_type(struct tty_struct *tty, unsigned long type)
  */
 
 static int serport_ldisc_ioctl(struct tty_struct *tty, struct file *file,
-			       unsigned int cmd, unsigned long arg)
+			       unsigned int cmd, uintptr_t arg)
 {
 	if (cmd == SPIOCSTYPE) {
 		unsigned long type;

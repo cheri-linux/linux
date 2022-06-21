@@ -394,7 +394,7 @@ extern int fat_trim_fs(struct inode *inode, struct fstrim_range *range);
 
 /* fat/file.c */
 extern long fat_generic_ioctl(struct file *filp, unsigned int cmd,
-			      unsigned long arg);
+			      uintptr_t arg);
 extern const struct file_operations fat_file_operations;
 extern const struct inode_operations fat_file_inode_operations;
 extern int fat_setattr(struct user_namespace *mnt_userns, struct dentry *dentry,

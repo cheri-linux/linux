@@ -11,6 +11,8 @@
 
 #include <asm/cacheflush.h>
 
+#include <linux/cheri.h>
+
 #include "highmem-internal.h"
 
 /**
@@ -240,7 +242,11 @@ static inline void copy_user_highpage(struct page *to, struct page *from,
 
 	vfrom = kmap_atomic(from);
 	vto = kmap_atomic(to);
+#ifndef CONFIG_CPU_CHERI
 	copy_user_page(vto, vfrom, vaddr, to);
+#else
+	cheri_memcpy_aligned(vto, vfrom, PAGE_SIZE);
+#endif
 	kunmap_atomic(vto);
 	kunmap_atomic(vfrom);
 }

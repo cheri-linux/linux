@@ -10,6 +10,7 @@
 
 #include <asm/barrier.h>
 #include <asm/fence.h>
+#include <asm/asm.h>
 
 #define __xchg_relaxed(ptr, new, size)					\
 ({									\
@@ -114,6 +115,19 @@
 					    _x_, sizeof(*(ptr)));	\
 })
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
+#define __xchg_16
+#else
+#define __xchg_16							\
+	case 16:							\
+		__asm__ __volatile__ (					\
+			" "CAP"amoswap.c.aqrl %0, %2, %1\n"		\
+			: "=C" (__ret), "+A" (*__ptr)			\
+			: "C" (__new)					\
+			: "memory");					\
+		break;
+#endif
+
 #define __xchg(ptr, new, size)						\
 ({									\
 	__typeof__(ptr) __ptr = (ptr);					\
@@ -122,18 +136,19 @@
 	switch (size) {							\
 	case 4:								\
 		__asm__ __volatile__ (					\
-			"	amoswap.w.aqrl %0, %2, %1\n"		\
+			"  "CAP"amoswap.w.aqrl %0, %2, %1\n"		\
 			: "=r" (__ret), "+A" (*__ptr)			\
 			: "r" (__new)					\
 			: "memory");					\
 		break;							\
 	case 8:								\
 		__asm__ __volatile__ (					\
-			"	amoswap.d.aqrl %0, %2, %1\n"		\
+			" "CAP"amoswap.d.aqrl %0, %2, %1\n"		\
 			: "=r" (__ret), "+A" (*__ptr)			\
 			: "r" (__new)					\
 			: "memory");					\
 		break;							\
+	__xchg_16;							\
 	default:							\
 		BUILD_BUG();						\
 	}								\
@@ -158,6 +173,25 @@
 	arch_xchg((ptr), (x));						\
 })
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
+#define __cmpxchg_relaxed_16
+#else
+#define __cmpxchg_relaxed_16						\
+	case 16:							\
+		__asm__ __volatile__ (					\
+			"0:"CAP"lr.c %0, %2\n"				\
+			"	cgetaddr t0, %0\n"			\
+			"	cgetaddr t1, %z3\n"			\
+			"	bne t0, t1, 1f\n"			\
+			"  "CAP"sc.c %1, %z4, %2\n"			\
+			"	bnez %1, 0b\n"				\
+			"1:\n"						\
+			: "=&C" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
+			: "C" (__old), "C" (__new)			\
+			: "memory", "t0", "t1");			\
+		break;
+#endif
+
 /*
  * Atomic compare and exchange.  Compare OLD with MEM, if identical,
  * store NEW in MEM.  Return the initial value in MEM.  Success is
@@ -173,9 +207,9 @@
 	switch (size) {							\
 	case 4:								\
 		__asm__ __volatile__ (					\
-			"0:	lr.w %0, %2\n"				\
+			"0:"CAP"lr.w %0, %2\n"				\
 			"	bne  %0, %z3, 1f\n"			\
-			"	sc.w %1, %z4, %2\n"			\
+			"  "CAP"sc.w %1, %z4, %2\n"			\
 			"	bnez %1, 0b\n"				\
 			"1:\n"						\
 			: "=&r" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
@@ -184,15 +218,16 @@
 		break;							\
 	case 8:								\
 		__asm__ __volatile__ (					\
-			"0:	lr.d %0, %2\n"				\
+			"0:"CAP"lr.d %0, %2\n"				\
 			"	bne %0, %z3, 1f\n"			\
-			"	sc.d %1, %z4, %2\n"			\
+			"  "CAP"sc.d %1, %z4, %2\n"			\
 			"	bnez %1, 0b\n"				\
 			"1:\n"						\
 			: "=&r" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
 			: "rJ" (__old), "rJ" (__new)			\
 			: "memory");					\
 		break;							\
+	__cmpxchg_relaxed_16;						\
 	default:							\
 		BUILD_BUG();						\
 	}								\
@@ -253,6 +288,26 @@
 					_o_, _n_, sizeof(*(ptr)));	\
 })
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
+#define __cmpxchg_release_16
+#else
+#define __cmpxchg_release_16						\
+	case 16:							\
+		__asm__ __volatile__ (					\
+			RISCV_RELEASE_BARRIER				\
+			"0:"CAP"lr.c %0, %2\n"				\
+			"	cgetaddr t0, %0\n"			\
+			"	cgetaddr t1, %z3\n"			\
+			"	bne t0, t1, 1f\n"			\
+			"  "CAP"sc.c %1, %z4, %2\n"			\
+			"	bnez %1, 0b\n"				\
+			"1:\n"						\
+			: "=&C" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
+			: "C" (__old), "C" (__new)			\
+			: "memory", "t0", "t1");			\
+		break;
+#endif
+
 #define __cmpxchg_release(ptr, old, new, size)				\
 ({									\
 	__typeof__(ptr) __ptr = (ptr);					\
@@ -264,9 +319,9 @@
 	case 4:								\
 		__asm__ __volatile__ (					\
 			RISCV_RELEASE_BARRIER				\
-			"0:	lr.w %0, %2\n"				\
+			"0:	"CAP"lr.w %0, %2\n"				\
 			"	bne  %0, %z3, 1f\n"			\
-			"	sc.w %1, %z4, %2\n"			\
+			"	"CAP"sc.w %1, %z4, %2\n"			\
 			"	bnez %1, 0b\n"				\
 			"1:\n"						\
 			: "=&r" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
@@ -276,15 +331,16 @@
 	case 8:								\
 		__asm__ __volatile__ (					\
 			RISCV_RELEASE_BARRIER				\
-			"0:	lr.d %0, %2\n"				\
+			"0:	"CAP"lr.d %0, %2\n"				\
 			"	bne %0, %z3, 1f\n"			\
-			"	sc.d %1, %z4, %2\n"			\
+			"	"CAP"sc.d %1, %z4, %2\n"			\
 			"	bnez %1, 0b\n"				\
 			"1:\n"						\
 			: "=&r" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
 			: "rJ" (__old), "rJ" (__new)			\
 			: "memory");					\
 		break;							\
+	__cmpxchg_release_16;						\
 	default:							\
 		BUILD_BUG();						\
 	}								\
@@ -299,6 +355,25 @@
 					_o_, _n_, sizeof(*(ptr)));	\
 })
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
+#define __cmpxchg_16
+#else
+#define __cmpxchg_16						\
+	case 16:							\
+		__asm__ __volatile__ (					\
+			"0:"CAP"lr.c %0, %2\n"				\
+			"	cgetaddr t0, %0\n"			\
+			"	cgetaddr t1, %z3\n"			\
+			"	bne t0, t1, 1f\n"			\
+			"  "CAP"sc.c.rl %1, %z4, %2\n"			\
+			"	bnez %1, 0b\n"				\
+			"	fence rw, rw\n"				\
+			"1:\n"						\
+			: "=&C" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
+			: "CJ" (__old), "CJ" (__new)			\
+			: "memory", "t0", "t1");			\
+		break;
+#endif
 #define __cmpxchg(ptr, old, new, size)					\
 ({									\
 	__typeof__(ptr) __ptr = (ptr);					\
@@ -309,21 +384,21 @@
 	switch (size) {							\
 	case 4:								\
 		__asm__ __volatile__ (					\
-			"0:	lr.w %0, %2\n"				\
+			"0: "CAP"lr.w %0, %2\n"				\
 			"	bne  %0, %z3, 1f\n"			\
-			"	sc.w.rl %1, %z4, %2\n"			\
+			"   "CAP"sc.w.rl %1, %z4, %2\n"			\
 			"	bnez %1, 0b\n"				\
 			"	fence rw, rw\n"				\
 			"1:\n"						\
 			: "=&r" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
-			: "rJ" ((long)__old), "rJ" (__new)		\
+			: "rJ" ((long)__old), "rJ" ((long)__new)	\
 			: "memory");					\
 		break;							\
 	case 8:								\
 		__asm__ __volatile__ (					\
-			"0:	lr.d %0, %2\n"				\
+			"0: "CAP"lr.d %0, %2\n"				\
 			"	bne %0, %z3, 1f\n"			\
-			"	sc.d.rl %1, %z4, %2\n"			\
+			"   "CAP"sc.d.rl %1, %z4, %2\n"			\
 			"	bnez %1, 0b\n"				\
 			"	fence rw, rw\n"				\
 			"1:\n"						\
@@ -331,6 +406,7 @@
 			: "rJ" (__old), "rJ" (__new)			\
 			: "memory");					\
 		break;							\
+	__cmpxchg_16;							\
 	default:							\
 		BUILD_BUG();						\
 	}								\

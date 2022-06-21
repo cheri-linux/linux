@@ -19,13 +19,21 @@ SYM_FUNC_START(__lshrti3)
 	or	a0,a0,a4
 	mv	a1,a2
 .L1:
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	ret
+#else
+	cret
+#endif
 .L2:
 	negw	a0,a4
 	li	a2,0
 	srl	a0,a1,a0
 	mv	a1,a2
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	ret
+#else
+	cret
+#endif
 SYM_FUNC_END(__lshrti3)
 EXPORT_SYMBOL(__lshrti3)
 
@@ -42,13 +50,21 @@ SYM_FUNC_START(__ashrti3)
 	or	a0,a0,a4
 	mv	a1,a2
 .L3:
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	ret
+#else
+	cret
+#endif
 .L4:
 	negw	a0,a4
 	srai	a2,a1,0x3f
 	sra	a0,a1,a0
 	mv	a1,a2
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	ret
+#else
+	cret
+#endif
 SYM_FUNC_END(__ashrti3)
 EXPORT_SYMBOL(__ashrti3)
 
@@ -65,12 +81,20 @@ SYM_FUNC_START(__ashlti3)
 	or	a1,a1,a4
 	mv	a0,a2
 .L5:
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	ret
+#else
+	cret
+#endif
 .L6:
 	negw	a1,a4
 	li	a2,0
 	sll	a1,a0,a1
 	mv	a0,a2
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	ret
+#else
+	cret
+#endif
 SYM_FUNC_END(__ashlti3)
 EXPORT_SYMBOL(__ashlti3)

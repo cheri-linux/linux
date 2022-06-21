@@ -24,7 +24,7 @@ static inline void bit_spin_lock(int bitnum, unsigned long *addr)
 	 */
 	preempt_disable();
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_SPINLOCK)
-	while (unlikely(test_and_set_bit_lock(bitnum, addr))) {
+	while (unlikely(ptr_test_and_set_bit_lock(bitnum, (uintptr_t*)addr))) {
 		preempt_enable();
 		do {
 			cpu_relax();
@@ -42,7 +42,7 @@ static inline int bit_spin_trylock(int bitnum, unsigned long *addr)
 {
 	preempt_disable();
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_SPINLOCK)
-	if (unlikely(test_and_set_bit_lock(bitnum, addr))) {
+	if (unlikely(ptr_test_and_set_bit_lock(bitnum, (uintptr_t*)addr))) {
 		preempt_enable();
 		return 0;
 	}
@@ -60,7 +60,7 @@ static inline void bit_spin_unlock(int bitnum, unsigned long *addr)
 	BUG_ON(!test_bit(bitnum, addr));
 #endif
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_SPINLOCK)
-	clear_bit_unlock(bitnum, addr);
+	ptr_clear_bit_unlock(bitnum, (uintptr_t*)addr);
 #endif
 	preempt_enable();
 	__release(bitlock);
@@ -77,7 +77,7 @@ static inline void __bit_spin_unlock(int bitnum, unsigned long *addr)
 	BUG_ON(!test_bit(bitnum, addr));
 #endif
 #if defined(CONFIG_SMP) || defined(CONFIG_DEBUG_SPINLOCK)
-	__clear_bit_unlock(bitnum, addr);
+	__ptr_clear_bit_unlock(bitnum, (uintptr_t*)addr);
 #endif
 	preempt_enable();
 	__release(bitlock);

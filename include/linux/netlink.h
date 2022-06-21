@@ -218,8 +218,11 @@ struct netlink_callback {
 	unsigned int		prev_seq, seq;
 	bool			strict_check;
 	union {
+#ifndef CONFIG_CPU_CHERI_PURECAP
 		u8		ctx[48];
-
+#else
+		u8		ctx[64];
+#endif
 		/* args is deprecated. Cast a struct over ctx instead
 		 * for proper type safety.
 		 */

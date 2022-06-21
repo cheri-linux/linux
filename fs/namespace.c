@@ -109,15 +109,15 @@ static inline void unlock_mount_hash(void)
 
 static inline struct hlist_head *m_hash(struct vfsmount *mnt, struct dentry *dentry)
 {
-	unsigned long tmp = ((unsigned long)mnt / L1_CACHE_BYTES);
-	tmp += ((unsigned long)dentry / L1_CACHE_BYTES);
+	uintptr_t tmp = ((uintptr_t)mnt / L1_CACHE_BYTES);
+	tmp += ((uintptr_t)dentry / L1_CACHE_BYTES);
 	tmp = tmp + (tmp >> m_hash_shift);
 	return &mount_hashtable[tmp & m_hash_mask];
 }
 
 static inline struct hlist_head *mp_hash(struct dentry *dentry)
 {
-	unsigned long tmp = ((unsigned long)dentry / L1_CACHE_BYTES);
+	uintptr_t tmp = ((uintptr_t)dentry / L1_CACHE_BYTES);
 	tmp = tmp + (tmp >> mp_hash_shift);
 	return &mountpoint_hashtable[tmp & mp_hash_mask];
 }
@@ -2574,7 +2574,7 @@ static void mnt_warn_timestamp_expiry(struct path *mountpoint, struct vfsmount *
 			mntpath,
 			tm.tm_year+1900, (unsigned long long)sb->s_time_max);
 
-		free_page((unsigned long)buf);
+		free_page((uintptr_t)buf);
 	}
 }
 
@@ -3197,13 +3197,22 @@ static void *copy_mount_options(const void __user * data)
 	if (!copy)
 		return ERR_PTR(-ENOMEM);
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	left = copy_from_user(copy, data, PAGE_SIZE);
+#else
+	unsigned long size = min(PAGE_SIZE, cheri_bytes_remaining(data));
+	left = copy_from_user(copy, data, size);
+#endif
 
 	/*
 	 * Not all architectures have an exact copy_from_user(). Resort to
 	 * byte at a time.
 	 */
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	offset = PAGE_SIZE - left;
+#else
+	offset = size - left;
+#endif
 	while (left) {
 		char c;
 		if (get_user(c, (const char __user *)data + offset))
@@ -3213,11 +3222,14 @@ static void *copy_mount_options(const void __user * data)
 		offset++;
 	}
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	if (left == PAGE_SIZE) {
+#else
+	if (left == size) {
+#endif
 		kfree(copy);
 		return ERR_PTR(-EFAULT);
 	}
-
 	return copy;
 }
 

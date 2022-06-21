@@ -41,6 +41,19 @@ static bool is_aligned(const void *base, size_t size, unsigned char align)
 	return (lsbits & (align - 1)) == 0;
 }
 
+#ifdef CONFIG_CPU_CHERI
+static void swap_words_128(void *a, void *b, size_t n)
+{
+	do {
+		uintptr_t t = *(uintptr_t *)(a + (n -= 16));
+		*(uintptr_t *)(a + n) = *(uintptr_t *)(b + n);
+		*(uintptr_t *)(b + n) = t;
+	} while (n);
+}
+#else
+static void swap_words_128(void *a, void *b, size_t n) { }
+#endif
+
 /**
  * swap_words_32 - swap two elements in 32-bit chunks
  * @a: pointer to the first element to swap
@@ -125,6 +138,7 @@ static void swap_bytes(void *a, void *b, size_t n)
 #define SWAP_WORDS_64 (swap_func_t)0
 #define SWAP_WORDS_32 (swap_func_t)1
 #define SWAP_BYTES    (swap_func_t)2
+#define SWAP_WORDS_128 (swap_func_t)3
 
 /*
  * The function pointer is last to make tail calls most efficient if the
@@ -132,7 +146,9 @@ static void swap_bytes(void *a, void *b, size_t n)
  */
 static void do_swap(void *a, void *b, size_t size, swap_func_t swap_func)
 {
-	if (swap_func == SWAP_WORDS_64)
+	if (swap_func == SWAP_WORDS_128)
+		swap_words_128(a, b, size);
+	else if (swap_func == SWAP_WORDS_64)
 		swap_words_64(a, b, size);
 	else if (swap_func == SWAP_WORDS_32)
 		swap_words_32(a, b, size);
@@ -209,7 +225,9 @@ void sort_r(void *base, size_t num, size_t size,
 		return;
 
 	if (!swap_func) {
-		if (is_aligned(base, size, 8))
+		if (is_aligned(base, size, 16))
+			swap_func = SWAP_WORDS_128;
+		else if (is_aligned(base, size, 8))
 			swap_func = SWAP_WORDS_64;
 		else if (is_aligned(base, size, 4))
 			swap_func = SWAP_WORDS_32;

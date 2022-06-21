@@ -1677,6 +1677,33 @@ out:
 }
 
 static long seccomp_notify_ioctl(struct file *file, unsigned int cmd,
+				 uintptr_t arg)
+{
+	struct seccomp_filter *filter = file->private_data;
+	void __user *buf = (void __user *)arg;
+
+	/* Fixed-size ioctls */
+	switch (cmd) {
+	case SECCOMP_IOCTL_NOTIF_RECV:
+		return seccomp_notify_recv(filter, buf);
+	case SECCOMP_IOCTL_NOTIF_SEND:
+		return seccomp_notify_send(filter, buf);
+	case SECCOMP_IOCTL_NOTIF_ID_VALID_WRONG_DIR:
+	case SECCOMP_IOCTL_NOTIF_ID_VALID:
+		return seccomp_notify_id_valid(filter, buf);
+	}
+
+	/* Extensible Argument ioctls */
+#define EA_IOCTL(cmd)	((cmd) & ~(IOC_INOUT | IOCSIZE_MASK))
+	switch (EA_IOCTL(cmd)) {
+	case EA_IOCTL(SECCOMP_IOCTL_NOTIF_ADDFD):
+		return seccomp_notify_addfd(filter, buf, _IOC_SIZE(cmd));
+	default:
+		return -EINVAL;
+	}
+}
+
+static long seccomp_notify_compat_ioctl(struct file *file, unsigned int cmd,
 				 unsigned long arg)
 {
 	struct seccomp_filter *filter = file->private_data;
@@ -1736,7 +1763,7 @@ static const struct file_operations seccomp_notify_ops = {
 	.poll = seccomp_notify_poll,
 	.release = seccomp_notify_release,
 	.unlocked_ioctl = seccomp_notify_ioctl,
-	.compat_ioctl = seccomp_notify_ioctl,
+	.compat_ioctl = seccomp_notify_compat_ioctl,
 };
 
 static struct file *init_listener(struct seccomp_filter *filter)

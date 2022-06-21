@@ -907,8 +907,8 @@ static void __early_init_dt_declare_initrd(unsigned long start,
 	 * conversion.
 	 */
 	if (!IS_ENABLED(CONFIG_ARM64)) {
-		initrd_start = (unsigned long)__va(start);
-		initrd_end = (unsigned long)__va(end);
+		initrd_start = (uintptr_t)__va(start);
+		initrd_end = (uintptr_t)__va(end);
 		initrd_below_start_ok = 1;
 	}
 }

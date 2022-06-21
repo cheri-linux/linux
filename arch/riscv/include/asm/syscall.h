@@ -59,18 +59,36 @@ static inline void syscall_get_arguments(struct task_struct *task,
 					 struct pt_regs *regs,
 					 unsigned long *args)
 {
+#ifdef CONFIG_CPU_CHERI
+	args[0] = regs->orig_a0;
+	args[1] = regs->a1;
+	args[2] = regs->a2;
+	args[3] = regs->a3;
+	args[4] = regs->a4;
+	args[5] = regs->a5;
+#else
 	args[0] = regs->orig_a0;
 	args++;
 	memcpy(args, &regs->a1, 5 * sizeof(args[0]));
+#endif
 }
 
 static inline void syscall_set_arguments(struct task_struct *task,
 					 struct pt_regs *regs,
 					 const unsigned long *args)
 {
+#ifdef CONFIG_CPU_CHERI
+	regs->orig_a0 = cheri_long(regs->ddc, args[0]);
+	regs->a1 = cheri_long(regs->ddc, args[1]);
+	regs->a2 = cheri_long(regs->ddc, args[2]);
+	regs->a3 = cheri_long(regs->ddc, args[3]);
+	regs->a4 = cheri_long(regs->ddc, args[4]);
+	regs->a5 = cheri_long(regs->ddc, args[5]);
+#else
 	regs->orig_a0 = args[0];
 	args++;
 	memcpy(&regs->a1, args, 5 * sizeof(regs->a1));
+#endif
 }
 
 static inline int syscall_get_arch(struct task_struct *task)

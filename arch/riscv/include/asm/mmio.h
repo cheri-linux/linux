@@ -18,26 +18,26 @@
 #define __raw_writeb __raw_writeb
 static inline void __raw_writeb(u8 val, volatile void __iomem *addr)
 {
-	asm volatile("sb %0, 0(%1)" : : "r" (val), "r" (addr));
+	asm volatile(CAP"sb %0, %1" : : "r" (val), "A" (*(uintptr_t*)addr));
 }
 
 #define __raw_writew __raw_writew
 static inline void __raw_writew(u16 val, volatile void __iomem *addr)
 {
-	asm volatile("sh %0, 0(%1)" : : "r" (val), "r" (addr));
+	asm volatile(CAP"sh %0, %1" : : "r" (val), "A" (*(uintptr_t*)addr));
 }
 
 #define __raw_writel __raw_writel
 static inline void __raw_writel(u32 val, volatile void __iomem *addr)
 {
-	asm volatile("sw %0, 0(%1)" : : "r" (val), "r" (addr));
+	asm volatile(CAP"sw %0, %1" : : "r" (val), "A" (*(uintptr_t*)addr));
 }
 
 #ifdef CONFIG_64BIT
 #define __raw_writeq __raw_writeq
 static inline void __raw_writeq(u64 val, volatile void __iomem *addr)
 {
-	asm volatile("sd %0, 0(%1)" : : "r" (val), "r" (addr));
+	asm volatile(CAP"sd %0, %1" : : "r" (val), "A" (*(uintptr_t*)addr));
 }
 #endif
 
@@ -46,7 +46,7 @@ static inline u8 __raw_readb(const volatile void __iomem *addr)
 {
 	u8 val;
 
-	asm volatile("lb %0, 0(%1)" : "=r" (val) : "r" (addr));
+	asm volatile(CAP"lb %0, %1" : "=r" (val) : "A" (*(uintptr_t*)addr));
 	return val;
 }
 
@@ -55,7 +55,7 @@ static inline u16 __raw_readw(const volatile void __iomem *addr)
 {
 	u16 val;
 
-	asm volatile("lh %0, 0(%1)" : "=r" (val) : "r" (addr));
+	asm volatile(CAP"lh %0, %1" : "=r" (val) : "A" (*(uintptr_t*)addr));
 	return val;
 }
 
@@ -64,7 +64,7 @@ static inline u32 __raw_readl(const volatile void __iomem *addr)
 {
 	u32 val;
 
-	asm volatile("lw %0, 0(%1)" : "=r" (val) : "r" (addr));
+	asm volatile(CAP"lw %0, %1" : "=r" (val) : "A" (*(uintptr_t*)addr));
 	return val;
 }
 
@@ -74,7 +74,7 @@ static inline u64 __raw_readq(const volatile void __iomem *addr)
 {
 	u64 val;
 
-	asm volatile("ld %0, 0(%1)" : "=r" (val) : "r" (addr));
+	asm volatile(CAP"ld %0, %1" : "=r" (val) : "A" (*(uintptr_t*)addr));
 	return val;
 }
 #endif

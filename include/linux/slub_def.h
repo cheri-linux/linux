@@ -47,7 +47,7 @@ enum stat_item {
  */
 struct kmem_cache_cpu {
 	void **freelist;	/* Pointer to next available object */
-	unsigned long tid;	/* Globally unique transaction id */
+	uintptr_t tid;		/* Globally unique transaction id */
 	struct page *page;	/* The slab from which we are allocating */
 #ifdef CONFIG_SLUB_CPU_PARTIAL
 	struct page *partial;	/* Partially allocated frozen slabs */

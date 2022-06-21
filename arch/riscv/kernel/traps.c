@@ -23,6 +23,8 @@
 #include <asm/ptrace.h>
 #include <asm/csr.h>
 
+#include <linux/cheri.h>
+
 int show_unhandled_signals = 1;
 
 static DEFINE_SPINLOCK(die_lock);
@@ -145,7 +147,7 @@ static inline unsigned long get_break_insn_length(unsigned long pc)
 {
 	bug_insn_t insn;
 
-	if (get_kernel_nofault(insn, (bug_insn_t *)pc))
+	if (get_kernel_nofault(insn, (bug_insn_t *)cheri_long_data(pc)))
 		return 0;
 
 	return GET_INSN_LENGTH(insn);
@@ -170,7 +172,7 @@ asmlinkage __visible __trap_section void do_trap_break(struct pt_regs *regs)
 	current->thread.bad_cause = regs->cause;
 
 	if (user_mode(regs))
-		force_sig_fault(SIGTRAP, TRAP_BRKPT, (void __user *)regs->epc);
+		force_sig_fault(SIGTRAP, TRAP_BRKPT, (void __user *)(uintptr_t)regs->epc);
 #ifdef CONFIG_KGDB
 	else if (notify_die(DIE_TRAP, "EBREAK", regs, 0, regs->cause, SIGTRAP)
 								== NOTIFY_STOP)
@@ -190,7 +192,7 @@ int is_valid_bugaddr(unsigned long pc)
 
 	if (pc < VMALLOC_START)
 		return 0;
-	if (get_kernel_nofault(insn, (bug_insn_t *)pc))
+	if (get_kernel_nofault(insn, (bug_insn_t *)cheri_long_data(pc)))
 		return 0;
 	if ((insn & __INSN_LENGTH_MASK) == __INSN_LENGTH_32)
 		return (insn == __BUG_INSN_32);
@@ -232,4 +234,15 @@ asmlinkage void handle_bad_stack(struct pt_regs *regs)
 	for (;;)
 		wait_for_interrupt();
 }
+#endif
+
+#ifdef CONFIG_CPU_CHERI
+
+asmlinkage void do_trap_cheri(struct pt_regs *regs)
+{
+	cheri_show_excinfo(regs);
+	do_trap_error(regs, SIGILL, ILL_ILLOPC, regs->epc,
+		      "Oops - CHERI exception");
+}
+
 #endif

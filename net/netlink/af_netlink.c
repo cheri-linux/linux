@@ -1141,7 +1141,7 @@ static int netlink_getname(struct socket *sock, struct sockaddr *addr,
 }
 
 static int netlink_ioctl(struct socket *sock, unsigned int cmd,
-			 unsigned long arg)
+			 uintptr_t arg)
 {
 	/* try to hand this ioctl down to the NIC drivers.
 	 */
@@ -1918,10 +1918,10 @@ static int netlink_sendmsg(struct socket *sock, struct msghdr *msg, size_t len)
 	if (skb == NULL)
 		goto out;
 
-	NETLINK_CB(skb).portid	= nlk->portid;
 	NETLINK_CB(skb).dst_group = dst_group;
 	NETLINK_CB(skb).creds	= scm.creds;
 	NETLINK_CB(skb).flags	= netlink_skb_flags;
+	NETLINK_CB(skb).portid	= nlk->portid;
 
 	err = -EFAULT;
 	if (memcpy_from_msg(skb_put(skb, len), msg, len)) {

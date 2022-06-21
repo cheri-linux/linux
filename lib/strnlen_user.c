@@ -20,6 +20,9 @@
  * if it fits in a aligned 'long'. The caller needs to check
  * the return value against "> max".
  */
+
+#ifndef CONFIG_CPU_CHERI_PURECAP
+
 static inline long do_strnlen_user(const char __user *src, unsigned long count, unsigned long max)
 {
 	const struct word_at_a_time constants = WORD_AT_A_TIME_CONSTANTS;
@@ -67,6 +70,31 @@ static inline long do_strnlen_user(const char __user *src, unsigned long count, 
 efault:
 	return 0;
 }
+
+#else
+
+static inline long do_strnlen_user(const char __user *src, unsigned long count, unsigned long max)
+{
+	unsigned long res = 1;
+	unsigned char c;
+
+	for (;;) {
+		unsafe_get_user(c, (unsigned char __user *)src++, efault);
+		if (c == '\0')
+			return res;
+		res++;
+		if (res >= max)
+			return max+1;
+	}
+
+	/*
+	 * Nope: we hit the address space limit, and we still had more
+	 * characters the caller would have wanted. That's 0.
+	 */
+efault:
+	return 0;
+}
+#endif
 
 /**
  * strnlen_user: - Get the size of a user string INCLUDING final NUL.

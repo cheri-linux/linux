@@ -26,6 +26,24 @@ _xip_fixup: .dword CONFIG_PHYS_RAM_BASE - CONFIG_XIP_PHYS_ADDR - XIP_OFFSET
 .endm
 #endif /* CONFIG_XIP_KERNEL */
 
+#include <asm/pgtable.h>
+
+#define PGDIR_SHIFT     30
+#define PMD_SHIFT       21
+#define PTE_SIZE	8
+
+#define _PAGE_KERNEL	(_PAGE_READ \
+			| _PAGE_WRITE \
+			| _PAGE_PRESENT \
+			| _PAGE_ACCESSED \
+			| _PAGE_DIRTY)
+
+#define PAGE_KERNEL_EXEC	_PAGE_KERNEL |_PAGE_EXEC
+
+#ifdef CONFIG_CPU_CHERI
+.option nocapmode
+#endif
+
 __HEAD
 ENTRY(_start)
 	/*
@@ -79,11 +97,65 @@ pe_head_start:
 
 .align 2
 #ifdef CONFIG_MMU
+
+#ifdef CONFIG_CPU_CHERI
+create_page_tables:
+	la a0, early_pgd
+	la a1, early_pmd
+	la a2, _start		// pa_start
+	la a3, _end		// pa_end
+	li a4, KERNEL_LINK_ADDR	// va_start
+	li a5, (1 << 21)	// 2 MiB
+
+	la t0, kernel_map
+	add t0, t0, KERNEL_MAP_VA_KERNEL_PA_OFFSET
+	sub t1, a4, a2
+	sd t1, (t0)
+
+	// create pgd entry
+	// pgd index
+	mv t0, a4
+	srli t0, t0, PGDIR_SHIFT
+	andi t0, t0, 0x1ff
+	// address in the pgd
+	li t1, PTE_SIZE
+	mulw t0, t0, t1
+	add t0, a0, t0
+	// pgd entry
+	srli t1, a1, PAGE_SHIFT
+	slli t1, t1, _PAGE_PFN_SHIFT
+	li t2, _PAGE_TABLE
+	or t1, t1, t2
+	// store entry
+	sd t1, (t0)
+
+	// create pmd entries to cover _start -> _end
+create_pmd:
+	// pmd entry
+	srli t1, a2, (PAGE_SHIFT + 9)
+	slli t1, t1, (_PAGE_PFN_SHIFT + 9)
+	li t2, PAGE_KERNEL_EXEC
+	or t1, t1, t2
+	// store entry
+	sd t1, (a1)
+	// go to next
+	addi a1, a1, PTE_SIZE
+	add a2, a2, a5
+	add a4, a4, a5
+	bltu a2, a3, create_pmd
+
+	ret
+#endif
+
 relocate:
 	/* Relocate return address */
+#ifndef CONFIG_CPU_CHERI
 	la a1, kernel_map
 	XIP_FIXUP_OFFSET a1
 	REG_L a1, KERNEL_MAP_VIRT_ADDR(a1)
+#else
+	li a1, KERNEL_LINK_ADDR
+#endif
 	la a2, _start
 	sub a1, a1, a2
 	add ra, ra, a1
@@ -104,12 +176,17 @@ relocate:
 	 * full fence here because setup_vm() just wrote these PTEs and we need
 	 * to ensure the new translations are in use.
 	 */
+#ifndef CONFIG_CPU_CHERI
 	la a0, trampoline_pg_dir
 	XIP_FIXUP_OFFSET a0
 	srl a0, a0, PAGE_SHIFT
 	or a0, a0, a1
 	sfence.vma
 	csrw CSR_SATP, a0
+#else
+	sfence.vma
+	csrw CSR_SATP, a2
+#endif
 .align 2
 1:
 	/* Set trap vector to spin forever to help debug */
@@ -128,8 +205,10 @@ relocate:
 	 * the first superpage.  Fetching the fence is guarnteed to work
 	 * because that first superpage is translated the same way.
 	 */
+#ifndef CONFIG_CPU_CHERI
 	csrw CSR_SATP, a2
 	sfence.vma
+#endif
 
 	ret
 #endif /* CONFIG_MMU */
@@ -184,8 +263,21 @@ secondary_start_common:
 setup_trap_vector:
 	/* Set trap vector to exception handler */
 	la a0, handle_exception
+#ifndef CONFIG_CPU_CHERI
 	csrw CSR_TVEC, a0
-
+#else
+	cmove ct0, cnull
+	cspecialw sscratchc, ct0
+	cspecialr ct0, ddc
+	// FIXCHERI: should permissions to be adjusted as well?
+	// all ddc must not be used at all for purecap kernel
+	cspecialw stdc, ct0
+	cspecialr ct0, pcc
+	csetaddr ct0, ct0, a0
+	li t1, 1
+	csetflags ct0, ct0, t1
+	cspecialw stcc, ct0
+#endif
 	/*
 	 * Set sup0 scratch register to 0, indicating to exception vector that
 	 * we are presently executing in kernel.
@@ -196,6 +288,10 @@ setup_trap_vector:
 .align 2
 .Lsecondary_park:
 	/* We lack SMP support or have too many harts, so park this hart */
+#ifdef CONFIG_CPU_CHERI
+	// read cheri special exception register
+	csrr t6, sccsr
+#endif
 	wfi
 	j .Lsecondary_park
 
@@ -288,7 +384,7 @@ pmp_done:
 	ble a4, a3, clear_bss_done
 clear_bss:
 	REG_S zero, (a3)
-	add a3, a3, RISCV_SZPTR
+	add a3, a3, __SIZEOF_LONG__
 	blt a3, a4, clear_bss
 clear_bss_done:
 #endif
@@ -300,6 +396,7 @@ clear_bss_done:
 	XIP_FIXUP_OFFSET a2
 	REG_S a0, (a2)
 
+#ifndef CONFIG_CPU_CHERI
 	/* Initialize page tables and relocate to virtual addresses */
 	la tp, init_task
 	la sp, init_thread_union + THREAD_SIZE
@@ -310,17 +407,95 @@ clear_bss_done:
 	mv a0, s1
 #endif /* CONFIG_BUILTIN_DTB */
 	call setup_vm
+#endif
 #ifdef CONFIG_MMU
+#ifndef CONFIG_CPU_CHERI
 	la a0, early_pg_dir
 	XIP_FIXUP_OFFSET a0
+#else
+	call create_page_tables
+	la s2, early_pg_dir
+#endif
 	call relocate
 #endif /* CONFIG_MMU */
 
 	call setup_trap_vector
+
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	/* Restore C environment */
 	la tp, init_task
 	sw zero, TASK_TI_CPU(tp)
 	la sp, init_thread_union + THREAD_SIZE
+#else
+	// enable capmode here
+	lla t1, 1f
+.option push
+.option capmode
+	cspecialr ct0, pcc
+	csetaddr ct0, ct0, t1
+	li t1, 1
+	csetflags ct0, ct0, t1
+#ifdef __riscv_xcheri_mode_dependent_jumps
+	jr.cap ct0
+#else
+	cjr ct0
+#endif
+.align 2
+1:
+	cllc ct1, kernel_code_cap
+	csc ct0, (ct1)
+
+	/* Restore C environment */
+	cllc cgp, __global_pointer$
+
+	cllc ctp, init_task
+	csw zero, TASK_TI_CPU(ctp)
+
+	// initialize stack pointer
+	// FIXCHERI: set bounds (locore)
+	cllc csp, init_thread_union
+	li t0, THREAD_SIZE
+	cincoffset csp, csp, t0
+
+	// omnipotent ddc -> cs3
+	cspecialr cs3, ddc
+	cspecialr cs4, pcc
+
+#if 0
+	/* FIXCHERI
+	 * adjust permissions, boundaries
+	 * burn ddc
+	 */
+	cmove ct0, cnull
+	cspecialw ddc, ct0
+#endif
+
+	cmove ca0, cs3
+	cmove ca1, cs4
+	cllc cra, init_cap_relocs
+	cjalr cra
+#endif
+
+#ifdef CONFIG_CPU_CHERI
+#ifdef CONFIG_BUILTIN_DTB
+	la a0, __dtb_start
+#else
+	mv a0, s1
+#endif /* CONFIG_BUILTIN_DTB */
+#ifndef CONFIG_CPU_CHERI_PURECAP
+	call setup_vm
+#else
+	cllc cra, setup_vm
+	cjalr cra
+#endif
+	srl a2, s2, PAGE_SHIFT
+	li a1, SATP_MODE
+	or a2, a2, a1
+	sfence.vma
+	csrw CSR_SATP, a2
+#endif
+
+#ifndef CONFIG_CPU_CHERI_PURECAP
 
 #ifdef CONFIG_KASAN
 	call kasan_early_init
@@ -328,6 +503,17 @@ clear_bss_done:
 	/* Start the kernel */
 	call soc_early_init
 	tail start_kernel
+#else
+#ifdef CONFIG_KASAN
+	cllc cra, kasan_early_init
+	cjalr cra
+#endif
+	cllc cra, soc_early_init
+	cjalr cra
+	cllc cra, start_kernel
+	cjr cra
+.option pop
+#endif
 
 .Lsecondary_start:
 #ifdef CONFIG_SMP
@@ -391,6 +577,10 @@ ENTRY(reset_regs)
 	li	t5, 0
 	li	t6, 0
 	csrw	CSR_SCRATCH, 0
+#ifdef CONFIG_CPU_CHERI
+	cmove ct0, cnull
+	cspecialw sscratchc, ct0
+#endif
 
 #ifdef CONFIG_FPU
 	csrr	t0, CSR_MISA
@@ -438,6 +628,15 @@ ENTRY(reset_regs)
 	ret
 END(reset_regs)
 #endif /* CONFIG_RISCV_M_MODE */
+
+#ifdef CONFIG_MMU
+.p2align 12
+early_pgd:
+	.space	PAGE_SIZE
+early_pmd:
+	.space	PAGE_SIZE
+	//.size	early_pmd, . - early_pmd
+#endif
 
 __PAGE_ALIGNED_BSS
 	/* Empty zero page */

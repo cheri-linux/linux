@@ -145,7 +145,11 @@ RB_DECLARE_CALLBACKS(RBSTATIC, RBNAME,					      \
 #define	RB_RED		0
 #define	RB_BLACK	1
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define __rb_parent(pc)    ((struct rb_node *)(pc & ~3))
+#else
+#define __rb_parent(pc)    ((struct rb_node *)cheri_long_data(pc & ~3))
+#endif
 
 #define __rb_color(pc)     ((pc) & 1)
 #define __rb_is_black(pc)  __rb_color(pc)
@@ -156,13 +160,13 @@ RB_DECLARE_CALLBACKS(RBSTATIC, RBNAME,					      \
 
 static inline void rb_set_parent(struct rb_node *rb, struct rb_node *p)
 {
-	rb->__rb_parent_color = rb_color(rb) | (unsigned long)p;
+	rb->__rb_parent_color = (uintptr_t)p | rb_color(rb);
 }
 
 static inline void rb_set_parent_color(struct rb_node *rb,
 				       struct rb_node *p, int color)
 {
-	rb->__rb_parent_color = (unsigned long)p | color;
+	rb->__rb_parent_color = (uintptr_t)p | color;
 }
 
 static inline void
@@ -201,7 +205,7 @@ __rb_erase_augmented(struct rb_node *node, struct rb_root *root,
 	struct rb_node *child = node->rb_right;
 	struct rb_node *tmp = node->rb_left;
 	struct rb_node *parent, *rebalance;
-	unsigned long pc;
+	uintptr_t pc;
 
 	if (!tmp) {
 		/*

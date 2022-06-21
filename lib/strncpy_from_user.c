@@ -34,6 +34,7 @@ static inline long do_strncpy_from_user(char *dst, const char __user *src,
 	if (IS_UNALIGNED(src, dst))
 		goto byte_at_a_time;
 
+#ifndef __CHERI_PURE_CAPABILITY__
 	while (max >= sizeof(unsigned long)) {
 		unsigned long c, data, mask;
 
@@ -64,6 +65,7 @@ static inline long do_strncpy_from_user(char *dst, const char __user *src,
 		res += sizeof(unsigned long);
 		max -= sizeof(unsigned long);
 	}
+#endif
 
 byte_at_a_time:
 	while (max) {

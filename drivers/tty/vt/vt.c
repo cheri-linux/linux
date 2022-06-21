@@ -107,6 +107,8 @@
 #include <linux/bsearch.h>
 #include <linux/gcd.h>
 
+#include <linux/cheri.h>
+
 #define MAX_NR_CON_DRIVER 16
 
 #define CON_DRIVER_FLAG_MODULE 1
@@ -630,8 +632,8 @@ static void con_scroll(struct vc_data *vc, unsigned int t, unsigned int b,
 	if (con_is_visible(vc) && vc->vc_sw->con_scroll(vc, t, b, dir, nr))
 		return;
 
-	s = clear = (u16 *)(vc->vc_origin + vc->vc_size_row * t);
-	d = (u16 *)(vc->vc_origin + vc->vc_size_row * (t + nr));
+	s = clear = (u16 *)cheri_long_data(vc->vc_origin + vc->vc_size_row * t);
+	d = (u16 *)cheri_long_data(vc->vc_origin + vc->vc_size_row * (t + nr));
 
 	if (dir == SM_UP) {
 		clear = s + (b - t - nr) * vc->vc_cols;
@@ -646,7 +648,7 @@ static void do_update_region(struct vc_data *vc, unsigned long start, int count)
 	unsigned int xx, yy, offset;
 	u16 *p;
 
-	p = (u16 *) start;
+	p = (u16 *) cheri_long_data(start);
 	if (!vc->vc_sw->con_getxy) {
 		offset = (start - vc->vc_origin) / 2;
 		xx = offset % vc->vc_cols;
@@ -868,7 +870,7 @@ static int softcursor_original = -1;
 
 static void add_softcursor(struct vc_data *vc)
 {
-	int i = scr_readw((u16 *) vc->vc_pos);
+	int i = scr_readw((u16 *) cheri_long_data(vc->vc_pos));
 	u32 type = vc->vc_cursor_type;
 
 	if (!(type & CUR_SW))
@@ -1561,13 +1563,13 @@ static void csi_J(struct vc_data *vc, int vpar)
 			vc_uniscr_clear_lines(vc, vc->state.y + 1,
 					      vc->vc_rows - vc->state.y - 1);
 			count = (vc->vc_scr_end - vc->vc_pos) >> 1;
-			start = (unsigned short *)vc->vc_pos;
+			start = (unsigned short *)cheri_long_data(vc->vc_pos);
 			break;
 		case 1:	/* erase from start to cursor */
 			vc_uniscr_clear_line(vc, 0, vc->state.x + 1);
 			vc_uniscr_clear_lines(vc, 0, vc->state.y);
 			count = ((vc->vc_pos - vc->vc_origin) >> 1) + 1;
-			start = (unsigned short *)vc->vc_origin;
+			start = (unsigned short *)cheri_long_data(vc->vc_origin);
 			break;
 		case 3: /* include scrollback */
 			flush_scrollback(vc);
@@ -1575,14 +1577,14 @@ static void csi_J(struct vc_data *vc, int vpar)
 		case 2: /* erase whole display */
 			vc_uniscr_clear_lines(vc, 0, vc->vc_rows);
 			count = vc->vc_cols * vc->vc_rows;
-			start = (unsigned short *)vc->vc_origin;
+			start = (unsigned short *)cheri_long_data(vc->vc_origin);
 			break;
 		default:
 			return;
 	}
 	scr_memsetw(start, vc->vc_video_erase_char, 2 * count);
 	if (con_should_update(vc))
-		do_update_region(vc, (unsigned long) start, count);
+		do_update_region(vc, (unsigned long)start, count);
 	vc->vc_need_wrap = 0;
 }
 
@@ -3107,7 +3109,7 @@ static void vt_console_print(struct console *co, const char *b, unsigned count)
 	if (con_is_fg(vc))
 		hide_cursor(vc);
 
-	start = (ushort *)vc->vc_pos;
+	start = (ushort *)cheri_long_data(vc->vc_pos);
 	start_x = vc->state.x;
 	cnt = 0;
 	while (count--) {
@@ -3118,20 +3120,20 @@ static void vt_console_print(struct console *co, const char *b, unsigned count)
 			cnt = 0;
 			if (c == 8) {		/* backspace */
 				bs(vc);
-				start = (ushort *)vc->vc_pos;
+				start = (ushort *)cheri_long_data(vc->vc_pos);
 				start_x = vc->state.x;
 				continue;
 			}
 			if (c != 13)
 				lf(vc);
 			cr(vc);
-			start = (ushort *)vc->vc_pos;
+			start = (ushort *)cheri_long_data(vc->vc_pos);
 			start_x = vc->state.x;
 			if (c == 10 || c == 13)
 				continue;
 		}
 		vc_uniscr_putc(vc, c);
-		scr_writew((vc->vc_attr << 8) + c, (unsigned short *)vc->vc_pos);
+		scr_writew((vc->vc_attr << 8) + c, (unsigned short *)cheri_long_data(vc->vc_pos));
 		notify_write(vc, c);
 		cnt++;
 		if (vc->state.x == vc->vc_cols - 1) {

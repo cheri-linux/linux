@@ -15,6 +15,8 @@
 #include <asm/sections.h>
 #include <linux/uaccess.h>
 
+#include <linux/cheri.h>
+
 /*
  * mutex protecting text section modification (dynamic code patching).
  * some users need to sleep (allocating memory...) while they hold this lock.
@@ -34,10 +36,11 @@ u32 __initdata __visible main_extable_sort_needed = 1;
 /* Sort the kernel's built-in exception table */
 void __init sort_main_extable(void)
 {
+	void * start = (void*)cheri_long_data((unsigned long)__start___ex_table);
 	if (main_extable_sort_needed &&
 	    &__stop___ex_table > &__start___ex_table) {
 		pr_notice("Sorting __ex_table...\n");
-		sort_extable(__start___ex_table, __stop___ex_table);
+		sort_extable(start, __stop___ex_table);
 	}
 }
 

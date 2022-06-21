@@ -23,7 +23,7 @@ struct linux_binprm {
 	struct page *page[MAX_ARG_PAGES];
 #endif
 	struct mm_struct *mm;
-	unsigned long p; /* current top of mem */
+	uintptr_t p; /* current top of mem */
 	unsigned long argmin; /* rlimit marker for copy_strings() */
 	unsigned int
 		/* Should an execfd be passed to userspace? */

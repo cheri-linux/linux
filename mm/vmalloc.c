@@ -2278,7 +2278,7 @@ void __init vm_area_register_early(struct vm_struct *vm, size_t align)
 	addr = ALIGN(VMALLOC_START + vm_init_off, align);
 	vm_init_off = PFN_ALIGN(addr + vm->size) - VMALLOC_START;
 
-	vm->addr = (void *)addr;
+	vm->addr = (void*)cheri_long_data(addr);
 
 	vm_area_add_early(vm);
 }
@@ -2370,7 +2370,7 @@ static inline void setup_vmalloc_vm_locked(struct vm_struct *vm,
 	struct vmap_area *va, unsigned long flags, const void *caller)
 {
 	vm->flags = flags;
-	vm->addr = (void *)va->va_start;
+	vm->addr = (void*)cheri_long_data(va->va_start);
 	vm->size = va->va_end - va->va_start;
 	vm->caller = caller;
 	va->vm = vm;

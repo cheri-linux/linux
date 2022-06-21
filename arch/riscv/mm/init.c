@@ -288,18 +288,18 @@ void __set_fixmap(enum fixed_addresses idx, phys_addr_t phys, pgprot_t prot)
 
 static inline pte_t *__init get_pte_virt_early(phys_addr_t pa)
 {
-	return (pte_t *)((uintptr_t)pa);
+	return (pte_t *)cheri_long_data(pa);
 }
 
 static inline pte_t *__init get_pte_virt_fixmap(phys_addr_t pa)
 {
 	clear_fixmap(FIX_PTE);
-	return (pte_t *)set_fixmap_offset(FIX_PTE, pa);
+	return (pte_t *)cheri_long_data(set_fixmap_offset(FIX_PTE, pa));
 }
 
 static inline pte_t *__init get_pte_virt_late(phys_addr_t pa)
 {
-	return (pte_t *) __va(pa);
+	return (pte_t *)cheri_long_data( __va(pa));
 }
 
 static inline phys_addr_t __init alloc_pte_early(uintptr_t va)
@@ -353,25 +353,25 @@ static pmd_t early_pmd[PTRS_PER_PMD] __initdata __aligned(PAGE_SIZE);
 static pmd_t *__init get_pmd_virt_early(phys_addr_t pa)
 {
 	/* Before MMU is enabled */
-	return (pmd_t *)((uintptr_t)pa);
+	return (pmd_t *)cheri_long_data(pa + kernel_map.va_kernel_pa_offset);
 }
 
 static pmd_t *__init get_pmd_virt_fixmap(phys_addr_t pa)
 {
 	clear_fixmap(FIX_PMD);
-	return (pmd_t *)set_fixmap_offset(FIX_PMD, pa);
+	return (pmd_t *)cheri_long_data(set_fixmap_offset(FIX_PMD, pa));
 }
 
 static pmd_t *__init get_pmd_virt_late(phys_addr_t pa)
 {
-	return (pmd_t *) __va(pa);
+	return (pmd_t *)cheri_long_data( __va(pa));
 }
 
 static phys_addr_t __init alloc_pmd_early(uintptr_t va)
 {
 	BUG_ON((va - kernel_map.virt_addr) >> PGDIR_SHIFT);
 
-	return (uintptr_t)early_pmd;
+	return (uintptr_t)early_pmd - kernel_map.va_kernel_pa_offset;
 }
 
 static phys_addr_t __init alloc_pmd_fixmap(uintptr_t va)
@@ -395,6 +395,9 @@ static void __init create_pmd_mapping(pmd_t *pmdp,
 	pte_t *ptep;
 	phys_addr_t pte_phys;
 	uintptr_t pmd_idx = pmd_index(va);
+
+	if (0xffffffff00000000 & pa)
+		pa -= kernel_map.va_kernel_pa_offset;
 
 	if (sz == PMD_SIZE) {
 		if (pmd_none(pmdp[pmd_idx]))
@@ -438,6 +441,9 @@ void __init create_pgd_mapping(pgd_t *pgdp,
 	pgd_next_t *nextp;
 	phys_addr_t next_phys;
 	uintptr_t pgd_idx = pgd_index(va);
+
+	if (0xffffffff00000000 & pa)
+		pa -= kernel_map.va_kernel_pa_offset;
 
 	if (sz == PGDIR_SIZE) {
 		if (pgd_val(pgdp[pgd_idx]) == 0)
@@ -592,8 +598,12 @@ static void __init create_fdt_early_page_table(pgd_t *pgdir, uintptr_t dtb_pa)
 		create_pmd_mapping(early_dtb_pmd, DTB_EARLY_BASE_VA + PMD_SIZE,
 				   pa + PMD_SIZE, PMD_SIZE, PAGE_KERNEL);
 	}
-
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	dtb_early_va = (void *)DTB_EARLY_BASE_VA + (dtb_pa & (PMD_SIZE - 1));
+#else
+	dtb_early_va = (void *)cheri_long_data(DTB_EARLY_BASE_VA) + (dtb_pa & (PMD_SIZE - 1));
+#endif
+
 #else
 	/*
 	 * For 64-bit kernel, __va can't be used since it would return a linear
@@ -623,11 +633,11 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 
 	kernel_map.va_kernel_xip_pa_offset = kernel_map.virt_addr - kernel_map.xiprom;
 #else
-	kernel_map.phys_addr = (uintptr_t)(&_start);
-	kernel_map.size = (uintptr_t)(&_end) - kernel_map.phys_addr;
+	kernel_map.phys_addr = (uintptr_t)((unsigned long)&_start - kernel_map.va_kernel_pa_offset);
+	kernel_map.size = (uintptr_t)((unsigned long)&_end - (unsigned long)&_start);
 #endif
 	kernel_map.va_pa_offset = PAGE_OFFSET - kernel_map.phys_addr;
-	kernel_map.va_kernel_pa_offset = kernel_map.virt_addr - kernel_map.phys_addr;
+	//kernel_map.va_kernel_pa_offset = kernel_map.virt_addr - kernel_map.phys_addr;
 
 	riscv_pfn_base = PFN_DOWN(kernel_map.phys_addr);
 

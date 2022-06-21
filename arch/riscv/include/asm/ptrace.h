@@ -12,7 +12,99 @@
 
 #ifndef __ASSEMBLY__
 
+#include <linux/cheri.h>
+
+#ifdef CONFIG_CPU_CHERI
+struct pt_regs_cregs {
+	register_t creg[33];
+};
+
+typedef struct {
+	long value, meta;
+} longreg_t;
+
+struct long_pt_regs {
+	longreg_t epc;
+	longreg_t ra;
+	longreg_t sp;
+	longreg_t gp;
+	longreg_t tp;
+	longreg_t t0;
+	longreg_t t1;
+	longreg_t t2;
+	longreg_t s0;
+	longreg_t s1;
+	longreg_t a0;
+	longreg_t a1;
+	longreg_t a2;
+	longreg_t a3;
+	longreg_t a4;
+	longreg_t a5;
+	longreg_t a6;
+	longreg_t a7;
+	longreg_t s2;
+	longreg_t s3;
+	longreg_t s4;
+	longreg_t s5;
+	longreg_t s6;
+	longreg_t s7;
+	longreg_t s8;
+	longreg_t s9;
+	longreg_t s10;
+	longreg_t s11;
+	longreg_t t3;
+	longreg_t t4;
+	longreg_t t5;
+	longreg_t t6;
+	longreg_t ddc;
+	/* a0 value before the syscall */
+	longreg_t orig_a0;
+	/* Supervisor/Machine CSRs */
+	unsigned long status;
+	unsigned long badaddr;
+	unsigned long cause;
+};
+
+#endif
+
 struct pt_regs {
+#ifdef CONFIG_CPU_CHERI
+	register_t epc;
+	register_t ra;
+	register_t sp;
+	register_t gp;
+	register_t tp;
+	register_t t0;
+	register_t t1;
+	register_t t2;
+	register_t s0;
+	register_t s1;
+	register_t a0;
+	register_t a1;
+	register_t a2;
+	register_t a3;
+	register_t a4;
+	register_t a5;
+	register_t a6;
+	register_t a7;
+	register_t s2;
+	register_t s3;
+	register_t s4;
+	register_t s5;
+	register_t s6;
+	register_t s7;
+	register_t s8;
+	register_t s9;
+	register_t s10;
+	register_t s11;
+	register_t t3;
+	register_t t4;
+	register_t t5;
+	register_t t6;
+	register_t ddc;
+	/* a0 value before the syscall */
+	register_t orig_a0;
+#else
 	unsigned long epc;
 	unsigned long ra;
 	unsigned long sp;
@@ -45,12 +137,13 @@ struct pt_regs {
 	unsigned long t4;
 	unsigned long t5;
 	unsigned long t6;
+	/* a0 value before the syscall */
+	unsigned long orig_a0;
+#endif
 	/* Supervisor/Machine CSRs */
 	unsigned long status;
 	unsigned long badaddr;
 	unsigned long cause;
-	/* a0 value before the syscall */
-	unsigned long orig_a0;
 };
 
 #ifdef CONFIG_64BIT
@@ -64,27 +157,35 @@ struct pt_regs {
 #define MAX_REG_OFFSET offsetof(struct pt_regs, orig_a0)
 
 /* Helpers for working with the instruction pointer */
-static inline unsigned long instruction_pointer(struct pt_regs *regs)
+static inline uintptr_t instruction_pointer(struct pt_regs *regs)
 {
 	return regs->epc;
 }
 static inline void instruction_pointer_set(struct pt_regs *regs,
 					   unsigned long val)
 {
+#ifndef CONFIG_CPU_CHERI
 	regs->epc = val;
+#else
+	regs->epc = cheri_long(kernel_code_cap, val);
+#endif
 }
 
 #define profile_pc(regs) instruction_pointer(regs)
 
 /* Helpers for working with the user stack pointer */
-static inline unsigned long user_stack_pointer(struct pt_regs *regs)
+static inline uintptr_t user_stack_pointer(struct pt_regs *regs)
 {
 	return regs->sp;
 }
 static inline void user_stack_pointer_set(struct pt_regs *regs,
 					  unsigned long val)
 {
-	regs->sp =  val;
+#ifndef CONFIG_CPU_CHERI
+	regs->sp = val;
+#else
+	regs->sp = cheri_long(regs->ddc, val);
+#endif
 }
 
 /* Valid only for Kernel mode traps. */
@@ -94,14 +195,18 @@ static inline unsigned long kernel_stack_pointer(struct pt_regs *regs)
 }
 
 /* Helpers for working with the frame pointer */
-static inline unsigned long frame_pointer(struct pt_regs *regs)
+static inline uintptr_t frame_pointer(struct pt_regs *regs)
 {
 	return regs->s0;
 }
 static inline void frame_pointer_set(struct pt_regs *regs,
 				     unsigned long val)
 {
+#ifndef CONFIG_CPU_CHERI
 	regs->s0 = val;
+#else
+	regs->s0 = cheri_long(regs->ddc, val);
+#endif
 }
 
 static inline unsigned long regs_return_value(struct pt_regs *regs)

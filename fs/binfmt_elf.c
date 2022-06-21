@@ -107,6 +107,8 @@ static struct linux_binfmt elf_format = {
 
 #define BAD_ADDR(x) (unlikely((unsigned long)(x) >= TASK_SIZE))
 
+#define KDS_POPULATE	MAP_POPULATE
+
 static int set_brk(unsigned long start, unsigned long end, int prot)
 {
 	start = ELF_PAGEALIGN(start);
@@ -138,7 +140,7 @@ static int padzero(unsigned long elf_bss)
 	nbyte = ELF_PAGEOFFSET(elf_bss);
 	if (nbyte) {
 		nbyte = ELF_MIN_ALIGN - nbyte;
-		if (clear_user((void __user *) elf_bss, nbyte))
+		if (clear_user((void __user *) cheri_long_data(elf_bss), nbyte))
 			return -EFAULT;
 	}
 	return 0;
@@ -155,7 +157,7 @@ static int padzero(unsigned long elf_bss)
 #else
 #define STACK_ADD(sp, items) ((elf_addr_t __user *)(sp) - (items))
 #define STACK_ROUND(sp, items) \
-	(((unsigned long) (sp - items)) &~ 15UL)
+	(((uintptr_t) (sp - items)) &~ 15UL)
 #define STACK_ALLOC(sp, len) ({ sp -= len ; sp; })
 #endif
 
@@ -174,7 +176,7 @@ create_elf_tables(struct linux_binprm *bprm, const struct elfhdr *exec,
 		unsigned long e_entry, unsigned long phdr_addr)
 {
 	struct mm_struct *mm = current->mm;
-	unsigned long p = bprm->p;
+	uintptr_t p = bprm->p;
 	int argc = bprm->argc;
 	int envc = bprm->envc;
 	elf_addr_t __user *sp;
@@ -297,7 +299,14 @@ create_elf_tables(struct linux_binprm *bprm, const struct elfhdr *exec,
 	ei_index = elf_info - (elf_addr_t *)mm->saved_auxv;
 	sp = STACK_ADD(p, ei_index);
 
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI))
+		items = ((argc + 1) + (envc + 1))*2 + 1;
+	else
+		items = (argc + 1) + (envc + 1) + 1;
+#else
 	items = (argc + 1) + (envc + 1) + 1;
+#endif
 	bprm->p = STACK_ROUND(sp, items);
 
 	/* Point sp at the lowest address on the stack */
@@ -324,28 +333,81 @@ create_elf_tables(struct linux_binprm *bprm, const struct elfhdr *exec,
 	if (put_user(argc, sp++))
 		return -EFAULT;
 
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI)){
+		sp++;
+	}
+#endif
 	/* Populate list of argv pointers back to argv strings. */
 	p = mm->arg_end = mm->arg_start;
 	while (argc-- > 0) {
 		size_t len;
+#ifdef CONFIG_CPU_CHERI_PURECAP
+	if (test_thread_flag(TIF_CHERIABI)){
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+		if (put_user(cheri_csetbounds(p, len), (uintcap_t *)sp))
+			return -EFAULT;
+		sp+=2;
+	}
+#elif defined(CONFIG_CPU_CHERI_HYBRID)
+	if (test_thread_flag(TIF_CHERIABI)){
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+		void __user * __capability cp = cheri_setaddress(cheri_getdefault(), p);
+		cp = cheri_csetbounds(cp, len);
+		if (put_user(cp, (voidcap_t *)__builtin_assume_aligned(sp, sizeof(void* __capability))))
+			return -EFAULT;
+		sp+=2;
+	} else {
 		if (put_user((elf_addr_t)p, sp++))
 			return -EFAULT;
 		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+	}
+#else
+		if (put_user((elf_addr_t)p, sp++))
+			return -EFAULT;
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+#endif
 		if (!len || len > MAX_ARG_STRLEN)
 			return -EINVAL;
 		p += len;
 	}
 	if (put_user(0, sp++))
 		return -EFAULT;
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI))
+		sp++;
+#endif
 	mm->arg_end = p;
 
 	/* Populate list of envp pointers back to envp strings. */
 	mm->env_end = mm->env_start = p;
 	while (envc-- > 0) {
 		size_t len;
+#ifdef CONFIG_CPU_CHERI_PURECAP
+	if (test_thread_flag(TIF_CHERIABI)){
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+		if (put_user(cheri_csetbounds(p, len), (uintcap_t *)sp))
+			return -EFAULT;
+		sp+=2;
+	}
+#elif defined(CONFIG_CPU_CHERI_HYBRID)
+	if (test_thread_flag(TIF_CHERIABI)){
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+		void __user * __capability cp = cheri_setaddress(cheri_getdefault(), p);
+		cp = cheri_csetbounds(cp, len);
+		if (put_user(cp, (voidcap_t *)__builtin_assume_aligned(sp, sizeof(void* __capability))))
+			return -EFAULT;
+		sp+=2;
+	} else {
 		if (put_user((elf_addr_t)p, sp++))
 			return -EFAULT;
 		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+	}
+#else
+		if (put_user((elf_addr_t)p, sp++))
+			return -EFAULT;
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+#endif
 		if (!len || len > MAX_ARG_STRLEN)
 			return -EINVAL;
 		p += len;
@@ -383,6 +445,7 @@ static unsigned long elf_map(struct file *filep, unsigned long addr,
 	* So we first map the 'big' image - and unmap the remainder at
 	* the end. (which unmap is needed for ELF images with holes.)
 	*/
+	type |= KDS_POPULATE;
 	if (total_size) {
 		total_size = ELF_PAGEALIGN(total_size);
 		map_addr = vm_mmap(filep, addr, total_size, prot, type, off);
@@ -1266,6 +1329,16 @@ out_free_interp:
 		goto out;
 #endif /* ARCH_HAS_SETUP_ADDITIONAL_PAGES */
 
+#ifdef CONFIG_CPU_CHERI_DEBUG
+        if (!randomize_va_space)
+                /* for knowing libc load address for gdb */
+                pr_info_once("load_addr: %#llx, interp_load_addr: %#llx\n",
+				load_addr, interp_load_addr);
+#endif
+
+#ifdef CONFIG_CPU_CHERI
+	update_thread_flag(TIF_CHERIABI, elf_check_cheriabi(elf_ex));
+#endif
 	retval = create_elf_tables(bprm, elf_ex, interp_load_addr,
 				   e_entry, phdr_addr);
 	if (retval < 0)
@@ -1303,7 +1376,7 @@ out_free_interp:
 		   Since we do not have the power to recompile these, we
 		   emulate the SVr4 behavior. Sigh. */
 		error = vm_mmap(NULL, 0, PAGE_SIZE, PROT_READ | PROT_EXEC,
-				MAP_FIXED | MAP_PRIVATE, 0);
+				MAP_FIXED | MAP_PRIVATE | KDS_POPULATE, 0);
 	}
 
 	regs = current_pt_regs();
@@ -1322,6 +1395,7 @@ out_free_interp:
 #endif
 
 	finalize_exec(bprm);
+
 	START_THREAD(elf_ex, regs, elf_entry, bprm->p);
 	retval = 0;
 out:
@@ -1396,7 +1470,7 @@ static int load_elf_library(struct file *file)
 			(eppnt->p_filesz +
 			 ELF_PAGEOFFSET(eppnt->p_vaddr)),
 			PROT_READ | PROT_WRITE | PROT_EXEC,
-			MAP_FIXED_NOREPLACE | MAP_PRIVATE,
+			MAP_FIXED_NOREPLACE | MAP_PRIVATE | MAP_DENYWRITE | KDS_POPULATE,
 			(eppnt->p_offset -
 			 ELF_PAGEOFFSET(eppnt->p_vaddr)));
 	if (error != ELF_PAGESTART(eppnt->p_vaddr))

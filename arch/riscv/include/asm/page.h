@@ -109,13 +109,27 @@ extern phys_addr_t phys_ram_base;
 #define is_linear_mapping(x)	\
 	((x) >= PAGE_OFFSET && (!IS_ENABLED(CONFIG_64BIT) || (x) < kernel_map.virt_addr))
 
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define linear_mapping_pa_to_va(x)	((void *)((unsigned long)(x) + kernel_map.va_pa_offset))
+#else
+#define linear_mapping_pa_to_va(x)	((void *)cheri_long_data((unsigned long)(x) + kernel_map.va_pa_offset))
+#endif
+
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define kernel_mapping_pa_to_va(y)	({						\
 	unsigned long _y = y;								\
 	(IS_ENABLED(CONFIG_XIP_KERNEL) && _y < phys_ram_base) ?					\
 		(void *)((unsigned long)(_y) + kernel_map.va_kernel_xip_pa_offset) :		\
 		(void *)((unsigned long)(_y) + kernel_map.va_kernel_pa_offset + XIP_OFFSET);	\
 	})
+#else
+#define kernel_mapping_pa_to_va(y)	({						\
+	unsigned long _y = y;								\
+	(IS_ENABLED(CONFIG_XIP_KERNEL) && _y < phys_ram_base) ?					\
+		(void *)cheri_long_data((unsigned long)(_y) + kernel_map.va_kernel_xip_pa_offset) :		\
+		(void *)cheri_long_data((unsigned long)(_y) + kernel_map.va_kernel_pa_offset + XIP_OFFSET);	\
+	})
+#endif
 #define __pa_to_va_nodebug(x)		linear_mapping_pa_to_va(x)
 
 #define linear_mapping_va_to_pa(x)	((unsigned long)(x) - kernel_map.va_pa_offset)

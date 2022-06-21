@@ -461,7 +461,7 @@ static int blkdev_close(struct inode *inode, struct file *filp)
 	return 0;
 }
 
-static long block_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+static long block_ioctl(struct file *file, unsigned cmd, uintptr_t arg)
 {
 	struct block_device *bdev = I_BDEV(bdev_file_inode(file));
 	fmode_t mode = file->f_mode;

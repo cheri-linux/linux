@@ -286,9 +286,16 @@ struct ftrace_likely_data {
 			 default: (x)))
 
 /* Is this type a native word size -- useful for atomic operations */
+#ifndef CONFIG_CPU_CHERI_PURECAP
 #define __native_word(t) \
 	(sizeof(t) == sizeof(char) || sizeof(t) == sizeof(short) || \
 	 sizeof(t) == sizeof(int) || sizeof(t) == sizeof(long))
+#else
+#define __native_word(t) \
+	(sizeof(t) == sizeof(char) || sizeof(t) == sizeof(short) || \
+	 sizeof(t) == sizeof(int) || sizeof(t) == sizeof(long) || \
+	 sizeof(t) == sizeof(__uintcap_t))
+#endif
 
 /* Compile time object size, -1 for unknown */
 #ifndef __compiletime_object_size

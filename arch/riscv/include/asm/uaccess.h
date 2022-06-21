@@ -80,27 +80,59 @@ static inline int __access_ok(unsigned long addr, unsigned long size)
 
 #define __get_user_asm(insn, x, ptr, err)			\
 do {								\
-	uintptr_t __tmp;					\
+	uintptr_t *__tmp;					\
 	__typeof__(x) __x;					\
 	__asm__ __volatile__ (					\
 		"1:\n"						\
-		"	" insn " %1, %3\n"			\
+		""CAP"" insn " %1, %3\n"			\
 		"2:\n"						\
 		"	.section .fixup,\"ax\"\n"		\
 		"	.balign 4\n"				\
 		"3:\n"						\
 		"	li %0, %4\n"				\
 		"	li %1, 0\n"				\
-		"	jump 2b, %2\n"				\
+		"	" JUMP(2b, %2) "\n"			\
 		"	.previous\n"				\
 		"	.section __ex_table,\"a\"\n"		\
 		"	.balign " RISCV_SZPTR "\n"			\
-		"	" RISCV_PTR " 1b, 3b\n"			\
+		"	" RISCV_PTR " 1b\n"			\
+		"	" RISCV_PTR " 3b\n"			\
 		"	.previous"				\
-		: "+r" (err), "=&r" (__x), "=r" (__tmp)		\
+		: "+r" (err), "=&r" (__x), "="REGC (__tmp)		\
 		: "m" (*(ptr)), "i" (-EFAULT));			\
 	(x) = __x;						\
 } while (0)
+
+#ifdef CONFIG_CPU_CHERI
+#define __get_user_asm_16(insn, x, ptr, err)			\
+do {								\
+	uintptr_t *__tmp;					\
+	__typeof__(x) __x;					\
+	__enable_user_access();					\
+	__asm__ __volatile__ (					\
+		"1:\n"						\
+		""CAP"" insn " %1, %3\n"			\
+		"2:\n"						\
+		"	.section .fixup,\"ax\"\n"		\
+		"	.balign 4\n"				\
+		"3:\n"						\
+		"	li %0, %4\n"				\
+		"	cmove %1, cnull\n"				\
+		"	" JUMP(2b, %2) "\n"			\
+		"	.previous\n"				\
+		"	.section __ex_table,\"a\"\n"		\
+		"	.balign " RISCV_SZPTR "\n"			\
+		"	" RISCV_PTR " 1b\n"			\
+		"	" RISCV_PTR " 3b\n"			\
+		"	.previous"				\
+		: "+r" (err), "=&C" (__x), "="REGC (__tmp)		\
+		: "m" (*(ptr)), "i" (-EFAULT));			\
+	__disable_user_access();				\
+	(x) = __x;						\
+} while (0)
+#else
+#define __get_user_asm_16(insn, x, ptr, err)
+#endif
 
 #ifdef CONFIG_64BIT
 #define __get_user_8(x, ptr, err) \
@@ -154,6 +186,9 @@ do {								\
 	case 8:							\
 		__get_user_8((x), __gu_ptr, __gu_err);	\
 		break;						\
+	case 16:							\
+		__get_user_asm_16("lc", (x), __gu_ptr, __gu_err);	\
+		break;						\
 	default:						\
 		BUILD_BUG();					\
 	}							\
@@ -179,6 +214,7 @@ do {								\
  * Returns zero on success, or -EFAULT on error.
  * On error, the variable @x is set to zero.
  */
+
 #define __get_user(x, ptr)					\
 ({								\
 	const __typeof__(*(ptr)) __user *__gu_ptr = (ptr);	\
@@ -221,25 +257,55 @@ do {								\
 
 #define __put_user_asm(insn, x, ptr, err)			\
 do {								\
-	uintptr_t __tmp;					\
+	uintptr_t *__tmp;					\
 	__typeof__(*(ptr)) __x = x;				\
 	__asm__ __volatile__ (					\
 		"1:\n"						\
-		"	" insn " %z3, %2\n"			\
+		"	" CAP insn " %z3, %2\n"			\
 		"2:\n"						\
 		"	.section .fixup,\"ax\"\n"		\
 		"	.balign 4\n"				\
 		"3:\n"						\
 		"	li %0, %4\n"				\
-		"	jump 2b, %1\n"				\
+		"	" JUMP(2b, %1) "\n"			\
 		"	.previous\n"				\
 		"	.section __ex_table,\"a\"\n"		\
 		"	.balign " RISCV_SZPTR "\n"			\
-		"	" RISCV_PTR " 1b, 3b\n"			\
+		"	" RISCV_PTR " 1b\n"			\
+		"	" RISCV_PTR " 3b\n"			\
 		"	.previous"				\
-		: "+r" (err), "=r" (__tmp), "=m" (*(ptr))	\
+		: "+r" (err), "="REGC (__tmp), "=m" (*(ptr))	\
 		: "rJ" (__x), "i" (-EFAULT));			\
 } while (0)
+
+#ifdef CONFIG_CPU_CHERI
+#define __put_user_asm16(insn, x, ptr, err)			\
+do {								\
+	uintptr_t *__tmp;					\
+	__typeof__(*(ptr)) __x = x;				\
+	__enable_user_access();					\
+	__asm__ __volatile__ (					\
+		"1:\n"						\
+		"	" CAP insn " %z3, %2\n"			\
+		"2:\n"						\
+		"	.section .fixup,\"ax\"\n"		\
+		"	.balign 4\n"				\
+		"3:\n"						\
+		"	li %0, %4\n"				\
+		"	" JUMP(2b, %1) "\n"			\
+		"	.previous\n"				\
+		"	.section __ex_table,\"a\"\n"		\
+		"	.balign " RISCV_SZPTR "\n"			\
+		"	" RISCV_PTR " 1b\n"			\
+		"	" RISCV_PTR " 3b\n"			\
+		"	.previous"				\
+		: "+r" (err), "="REGC (__tmp), "=m" (*(ptr))	\
+		: "CJ" (__x), "i" (-EFAULT));			\
+	__disable_user_access();				\
+} while (0)
+#else
+#define __put_user_asm16(insn, x, ptr, err)
+#endif
 
 #ifdef CONFIG_64BIT
 #define __put_user_8(x, ptr, err) \
@@ -289,6 +355,9 @@ do {								\
 	case 8:							\
 		__put_user_8((x), __gu_ptr, __pu_err);	\
 		break;						\
+	case 16:						\
+		__put_user_asm16("sc", (x), __gu_ptr, __pu_err);	\
+		break;                      			\
 	default:						\
 		BUILD_BUG();					\
 	}							\

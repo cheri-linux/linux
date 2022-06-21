@@ -550,7 +550,7 @@ static inline int __on_sig_stack(unsigned long sp)
 /*
  * True if we are on the alternate signal stack.
  */
-static inline int on_sig_stack(unsigned long sp)
+static inline int on_sig_stack(uintptr_t sp)
 {
 	/*
 	 * If the signal stack is SS_AUTODISARM then, by construction, we
@@ -567,7 +567,7 @@ static inline int on_sig_stack(unsigned long sp)
 	return __on_sig_stack(sp);
 }
 
-static inline int sas_ss_flags(unsigned long sp)
+static inline int sas_ss_flags(uintptr_t sp)
 {
 	if (!current->sas_ss_size)
 		return SS_DISABLE;
@@ -582,7 +582,7 @@ static inline void sas_ss_reset(struct task_struct *p)
 	p->sas_ss_flags = SS_DISABLE;
 }
 
-static inline unsigned long sigsp(unsigned long sp, struct ksignal *ksig)
+static inline uintptr_t sigsp(uintptr_t sp, struct ksignal *ksig)
 {
 	if (unlikely((ksig->ka.sa.sa_flags & SA_ONSTACK)) && ! sas_ss_flags(sp))
 #ifdef CONFIG_STACK_GROWSUP

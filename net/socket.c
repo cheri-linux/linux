@@ -106,6 +106,8 @@
 #include <linux/errqueue.h>
 #include <linux/ptp_clock_kernel.h>
 
+#include <linux/cheri.h>
+
 #ifdef CONFIG_NET_RX_BUSY_POLL
 unsigned int sysctl_net_busy_read __read_mostly;
 unsigned int sysctl_net_busy_poll __read_mostly;
@@ -118,7 +120,7 @@ static int sock_mmap(struct file *file, struct vm_area_struct *vma);
 static int sock_close(struct inode *inode, struct file *file);
 static __poll_t sock_poll(struct file *file,
 			      struct poll_table_struct *wait);
-static long sock_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
+static long sock_ioctl(struct file *file, unsigned int cmd, uintptr_t arg);
 #ifdef CONFIG_COMPAT
 static long compat_sock_ioctl(struct file *file,
 			      unsigned int cmd, unsigned long arg);
@@ -1110,7 +1112,7 @@ void vlan_ioctl_set(int (*hook) (struct net *, void __user *))
 EXPORT_SYMBOL(vlan_ioctl_set);
 
 static long sock_do_ioctl(struct net *net, struct socket *sock,
-			  unsigned int cmd, unsigned long arg)
+			  unsigned int cmd, uintptr_t arg)
 {
 	struct ifreq ifr;
 	bool need_copyout;
@@ -1145,7 +1147,7 @@ static long sock_do_ioctl(struct net *net, struct socket *sock,
  *	what to do with it - that's up to the protocol still.
  */
 
-static long sock_ioctl(struct file *file, unsigned cmd, unsigned long arg)
+static long sock_ioctl(struct file *file, unsigned cmd, uintptr_t arg)
 {
 	struct socket *sock;
 	struct sock *sk;
@@ -2291,9 +2293,24 @@ int __copy_msghdr_from_user(struct msghdr *kmsg,
 	struct user_msghdr msg;
 	ssize_t err;
 
-	if (copy_from_user(&msg, umsg, sizeof(*umsg)))
-		return -EFAULT;
-
+#ifdef CONFIG_CPU_CHERI_HYBRID
+	if (test_thread_flag(TIF_CHERIABI)) {
+		struct user_msghdr_cap cmsg;
+		if (copy_from_user(&cmsg, umsg, sizeof(cmsg)))
+			return -EFAULT;
+		msg.msg_name = (void*)cheri_getaddress(cmsg.msg_name);
+		msg.msg_namelen = cmsg.msg_namelen;
+		msg.msg_iov = (void*)cheri_getaddress(cmsg.msg_iov);
+		msg.msg_iovlen = cmsg.msg_iovlen;
+		msg.msg_control = (void*)cheri_getaddress(cmsg.msg_control);
+		msg.msg_controllen = cmsg.msg_controllen;
+		msg.msg_flags = cmsg.msg_flags;
+	} else
+#endif
+	{
+		if (copy_from_user(&msg, umsg, sizeof(*umsg)))
+			return -EFAULT;
+	}
 	kmsg->msg_control_is_user = true;
 	kmsg->msg_control_user = msg.msg_control;
 	kmsg->msg_controllen = msg.msg_controllen;
@@ -2518,6 +2535,9 @@ int __sys_sendmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen,
 	struct msghdr msg_sys;
 	struct used_address used_address;
 	unsigned int oflags = flags;
+#ifdef CONFIG_CPU_CHERI_HYBRID
+	struct mmsghdr_cap __user *centry;
+#endif
 
 	if (forbid_cmsg_compat && (flags & MSG_CMSG_COMPAT))
 		return -EINVAL;
@@ -2536,11 +2556,25 @@ int __sys_sendmmsg(int fd, struct mmsghdr __user *mmsg, unsigned int vlen,
 	compat_entry = (struct compat_mmsghdr __user *)mmsg;
 	err = 0;
 	flags |= MSG_BATCH;
+#ifdef CONFIG_CPU_CHERI_HYBRID
+	centry = (struct mmsghdr_cap*)mmsg;
+#endif
 
 	while (datagrams < vlen) {
 		if (datagrams == vlen - 1)
 			flags = oflags;
 
+#ifdef CONFIG_CPU_CHERI_HYBRID
+		if (test_thread_flag(TIF_CHERIABI)) {
+			err = ___sys_sendmsg(sock,
+					     (struct user_msghdr __user *)centry,
+					     &msg_sys, flags, &used_address, MSG_EOR);
+			if (err < 0)
+				break;
+			err = put_user(err, &centry->msg_len);
+			++centry;
+		} else
+#endif
 		if (MSG_CMSG_COMPAT & flags) {
 			err = ___sys_sendmsg(sock, (struct user_msghdr __user *)compat_entry,
 					     &msg_sys, flags, &used_address, MSG_EOR);
@@ -2609,7 +2643,13 @@ static int ____sys_recvmsg(struct socket *sock, struct msghdr *msg_sys,
 {
 	struct compat_msghdr __user *msg_compat =
 					(struct compat_msghdr __user *) msg;
+#ifdef CONFIG_CPU_CHERI_HYBRID
+	struct user_msghdr_cap __user *cmsg = (struct user_msghdr_cap __user *)msg;
+	bool cheri = test_thread_flag(TIF_CHERIABI);
+	int __user *uaddr_len = cheri ? &cmsg->msg_namelen : COMPAT_NAMELEN(msg);
+#else
 	int __user *uaddr_len = COMPAT_NAMELEN(msg);
+#endif
 	struct sockaddr_storage addr;
 	unsigned long cmsg_ptr;
 	int len;
@@ -2642,7 +2682,12 @@ static int ____sys_recvmsg(struct socket *sock, struct msghdr *msg_sys,
 			goto out;
 	}
 	err = __put_user((msg_sys->msg_flags & ~MSG_CMSG_COMPAT),
-			 COMPAT_FLAGS(msg));
+#ifdef CONFIG_CPU_CHERI_HYBRID
+			cheri ? &cmsg->msg_flags : COMPAT_FLAGS(msg)
+#else
+			COMPAT_FLAGS(msg)
+#endif
+			);
 	if (err)
 		goto out;
 	if (MSG_CMSG_COMPAT & flags)
@@ -2650,7 +2695,12 @@ static int ____sys_recvmsg(struct socket *sock, struct msghdr *msg_sys,
 				 &msg_compat->msg_controllen);
 	else
 		err = __put_user((unsigned long)msg_sys->msg_control - cmsg_ptr,
-				 &msg->msg_controllen);
+#ifdef CONFIG_CPU_CHERI_HYBRID
+				 cheri ? &cmsg->msg_controllen : &msg->msg_controllen
+#else
+				 &msg->msg_controllen
+#endif
+				 );
 	if (err)
 		goto out;
 	err = len;
@@ -2728,6 +2778,9 @@ static int do_recvmmsg(int fd, struct mmsghdr __user *mmsg,
 	struct msghdr msg_sys;
 	struct timespec64 end_time;
 	struct timespec64 timeout64;
+#ifdef CONFIG_CPU_CHERI_HYBRID
+	struct mmsghdr_cap __user *centry;
+#endif
 
 	if (timeout &&
 	    poll_select_set_timeout(&end_time, timeout->tv_sec,
@@ -2750,11 +2803,27 @@ static int do_recvmmsg(int fd, struct mmsghdr __user *mmsg,
 
 	entry = mmsg;
 	compat_entry = (struct compat_mmsghdr __user *)mmsg;
+#ifdef CONFIG_CPU_CHERI_HYBRID
+	centry = (struct mmsghdr_cap*)mmsg;
+#endif
 
 	while (datagrams < vlen) {
 		/*
 		 * No need to ask LSM for more than the first datagram.
 		 */
+#ifdef CONFIG_CPU_CHERI_HYBRID
+		if (test_thread_flag(TIF_CHERIABI)) {
+			err = ___sys_recvmsg(sock,
+					     (struct user_msghdr __user *)centry,
+					     &msg_sys, flags & ~MSG_WAITFORONE,
+					     datagrams);
+			if (err < 0)
+				break;
+			err = put_user(err, &centry->msg_len);
+			++centry;
+
+		} else
+#endif
 		if (MSG_CMSG_COMPAT & flags) {
 			err = ___sys_recvmsg(sock, (struct user_msghdr __user *)compat_entry,
 					     &msg_sys, flags & ~MSG_WAITFORONE,

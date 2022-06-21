@@ -14,14 +14,18 @@
 
 #include <asm/stacktrace.h>
 
-register unsigned long sp_in_global __asm__("sp");
+#ifndef CONFIG_CPU_CHERI_PURECAP
+register uintptr_t sp_in_global __asm__("sp");
+#else
+register uintptr_t sp_in_global __asm__("csp");
+#endif
 
 #ifdef CONFIG_FRAME_POINTER
 
 void notrace walk_stackframe(struct task_struct *task, struct pt_regs *regs,
-			     bool (*fn)(void *, unsigned long), void *arg)
+			     bool (*fn)(void *, uintptr_t), void *arg)
 {
-	unsigned long fp, sp, pc;
+	uintptr_t fp, sp, pc;
 	int level = 0;
 
 	if (regs) {
@@ -29,9 +33,9 @@ void notrace walk_stackframe(struct task_struct *task, struct pt_regs *regs,
 		sp = user_stack_pointer(regs);
 		pc = instruction_pointer(regs);
 	} else if (task == NULL || task == current) {
-		fp = (unsigned long)__builtin_frame_address(0);
+		fp = (uintptr_t)__builtin_frame_address(0);
 		sp = sp_in_global;
-		pc = (unsigned long)walk_stackframe;
+		pc = (uintptr_t)walk_stackframe;
 	} else {
 		/* task blocked in __switch_to */
 		fp = task->thread.s[0];
@@ -40,7 +44,7 @@ void notrace walk_stackframe(struct task_struct *task, struct pt_regs *regs,
 	}
 
 	for (;;) {
-		unsigned long low, high;
+		uintptr_t low, high;
 		struct stackframe *frame;
 
 		if (unlikely(!__kernel_text_address(pc) || (level++ >= 1 && !fn(arg, pc))))
@@ -60,7 +64,7 @@ void notrace walk_stackframe(struct task_struct *task, struct pt_regs *regs,
 		} else {
 			fp = frame->fp;
 			pc = ftrace_graph_ret_addr(current, NULL, frame->ra,
-						   (unsigned long *)(fp - 8));
+						   (unsigned long *)(fp - sizeof(uintptr_t)));
 		}
 
 	}
@@ -69,17 +73,17 @@ void notrace walk_stackframe(struct task_struct *task, struct pt_regs *regs,
 #else /* !CONFIG_FRAME_POINTER */
 
 void notrace walk_stackframe(struct task_struct *task,
-	struct pt_regs *regs, bool (*fn)(void *, unsigned long), void *arg)
+	struct pt_regs *regs, bool (*fn)(void *, uintptr_t), void *arg)
 {
-	unsigned long sp, pc;
-	unsigned long *ksp;
+	uintptr_t sp, pc;
+	uintptr_t *ksp;
 
 	if (regs) {
 		sp = user_stack_pointer(regs);
 		pc = instruction_pointer(regs);
 	} else if (task == NULL || task == current) {
 		sp = sp_in_global;
-		pc = (unsigned long)walk_stackframe;
+		pc = (uintptr_t)walk_stackframe;
 	} else {
 		/* task blocked in __switch_to */
 		sp = task->thread.sp;
@@ -89,7 +93,7 @@ void notrace walk_stackframe(struct task_struct *task,
 	if (unlikely(sp & 0x7))
 		return;
 
-	ksp = (unsigned long *)sp;
+	ksp = (uintptr_t *)sp;
 	while (!kstack_end(ksp)) {
 		if (__kernel_text_address(pc) && unlikely(!fn(arg, pc)))
 			break;
@@ -99,7 +103,7 @@ void notrace walk_stackframe(struct task_struct *task,
 
 #endif /* CONFIG_FRAME_POINTER */
 
-static bool print_trace_address(void *arg, unsigned long pc)
+static bool print_trace_address(void *arg, uintptr_t pc)
 {
 	const char *loglvl = arg;
 
@@ -113,25 +117,25 @@ noinline void dump_backtrace(struct pt_regs *regs, struct task_struct *task,
 	walk_stackframe(task, regs, print_trace_address, (void *)loglvl);
 }
 
-void show_stack(struct task_struct *task, unsigned long *sp, const char *loglvl)
+void show_stack(struct task_struct *task, uintptr_t *sp, const char *loglvl)
 {
 	pr_cont("%sCall Trace:\n", loglvl);
 	dump_backtrace(NULL, task, loglvl);
 }
 
-static bool save_wchan(void *arg, unsigned long pc)
+static bool save_wchan(void *arg, uintptr_t pc)
 {
 	if (!in_sched_functions(pc)) {
-		unsigned long *p = arg;
+		uintptr_t *p = arg;
 		*p = pc;
 		return false;
 	}
 	return true;
 }
 
-unsigned long get_wchan(struct task_struct *task)
+uintptr_t get_wchan(struct task_struct *task)
 {
-	unsigned long pc = 0;
+	uintptr_t pc = 0;
 
 	if (likely(task && task != current && !task_is_running(task))) {
 		if (!try_get_task_stack(task))

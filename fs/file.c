@@ -1024,7 +1024,7 @@ struct file *task_lookup_next_fd_rcu(struct task_struct *task, unsigned int *ret
  * The fput_needed flag returned by fget_light should be passed to the
  * corresponding fput_light.
  */
-static unsigned long __fget_light(unsigned int fd, fmode_t mask)
+static uintptr_t __fget_light(unsigned int fd, fmode_t mask)
 {
 	struct files_struct *files = current->files;
 	struct file *file;
@@ -1033,28 +1033,28 @@ static unsigned long __fget_light(unsigned int fd, fmode_t mask)
 		file = files_lookup_fd_raw(files, fd);
 		if (!file || unlikely(file->f_mode & mask))
 			return 0;
-		return (unsigned long)file;
+		return (uintptr_t)file;
 	} else {
 		file = __fget(fd, mask, 1);
 		if (!file)
 			return 0;
-		return FDPUT_FPUT | (unsigned long)file;
+		return FDPUT_FPUT | (uintptr_t)file;
 	}
 }
-unsigned long __fdget(unsigned int fd)
+uintptr_t __fdget(unsigned int fd)
 {
 	return __fget_light(fd, FMODE_PATH);
 }
 EXPORT_SYMBOL(__fdget);
 
-unsigned long __fdget_raw(unsigned int fd)
+uintptr_t __fdget_raw(unsigned int fd)
 {
 	return __fget_light(fd, 0);
 }
 
-unsigned long __fdget_pos(unsigned int fd)
+uintptr_t __fdget_pos(unsigned int fd)
 {
-	unsigned long v = __fdget(fd);
+	uintptr_t v = __fdget(fd);
 	struct file *file = (struct file *)(v & ~3);
 
 	if (file && (file->f_mode & FMODE_ATOMIC_POS)) {

@@ -175,7 +175,11 @@ nfs_page_private_request(struct page *page)
 {
 	if (!PagePrivate(page))
 		return NULL;
+#ifdef CONFIG_CPU_CHERI_PURECAP
+	return (struct nfs_page *)cheri_long_data(page_private(page));
+#else
 	return (struct nfs_page *)page_private(page);
+#endif
 }
 
 /*

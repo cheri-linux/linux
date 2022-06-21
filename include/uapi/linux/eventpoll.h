@@ -76,7 +76,7 @@
 
 struct epoll_event {
 	__poll_t events;
-	__u64 data;
+	uintptr_t data;
 } EPOLL_PACKED;
 
 #ifdef CONFIG_PM_SLEEP

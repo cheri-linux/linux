@@ -13,6 +13,10 @@ ENTRY(__vdso_getcpu)
 	/* For now, just do the syscall. */
 	li a7, __NR_getcpu
 	ecall
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	ret
+#else
+	cret
+#endif
 	.cfi_endproc
 ENDPROC(__vdso_getcpu)

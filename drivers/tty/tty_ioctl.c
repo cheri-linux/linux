@@ -685,12 +685,13 @@ static int tty_change_softcar(struct tty_struct *tty, int arg)
  */
 
 int tty_mode_ioctl(struct tty_struct *tty, struct file *file,
-			unsigned int cmd, unsigned long arg)
+			unsigned int cmd, uintptr_t arg)
 {
 	struct tty_struct *real_tty;
 	void __user *p = (void __user *)arg;
 	int ret = 0;
 	struct ktermios kterm;
+	unsigned long val;
 
 	BUG_ON(file == NULL);
 
@@ -806,9 +807,9 @@ int tty_mode_ioctl(struct tty_struct *tty, struct file *file,
 						(int __user *)arg);
 		return ret;
 	case TIOCSSOFTCAR:
-		if (get_user(arg, (unsigned int __user *) arg))
+		if (get_user(val, (unsigned int __user *) arg))
 			return -EFAULT;
-		return tty_change_softcar(real_tty, arg);
+		return tty_change_softcar(real_tty, val);
 	default:
 		return -ENOIOCTLCMD;
 	}
@@ -859,7 +860,7 @@ int tty_perform_flush(struct tty_struct *tty, unsigned long arg)
 EXPORT_SYMBOL_GPL(tty_perform_flush);
 
 int n_tty_ioctl_helper(struct tty_struct *tty, struct file *file,
-		       unsigned int cmd, unsigned long arg)
+		       unsigned int cmd, uintptr_t arg)
 {
 	int retval;
 

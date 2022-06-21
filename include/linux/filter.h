@@ -423,6 +423,8 @@ static inline bool insn_is_zext(const struct bpf_insn *insn)
 		bpf_size = BPF_W;				\
 	else if (bytes == sizeof(u64))				\
 		bpf_size = BPF_DW;				\
+	else if (bytes == 2 * sizeof(u64))			\
+		bpf_size = BPF_QW;				\
 								\
 	bpf_size;						\
 })

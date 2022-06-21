@@ -31,6 +31,28 @@
  */
 #define elf_check_arch(x) ((x)->e_machine == EM_RISCV)
 
+/* Flags in the e_flags field of the header */
+#define EF_RISCV_ABI		0x000f0000
+
+#define EF_RISCV_ABI_CHERIABI	0x00030000
+
+/*
+ * Return non-zero if HDR identifies an cheriabi ELF binary.
+ */
+#define elf_check_cheriabi(hdr)						\
+({									\
+	int __res = 1;							\
+	struct elfhdr *__h = (hdr);					\
+									\
+	if (!elf_check_arch(__h))				\
+		__res = 0;						\
+	if ((__h->e_flags & EF_RISCV_ABI) != EF_RISCV_ABI_CHERIABI)	\
+		__res = 0;						\
+									\
+	__res;								\
+})
+
+
 #define CORE_DUMP_USE_REGSET
 #define ELF_EXEC_PAGESIZE	(PAGE_SIZE)
 

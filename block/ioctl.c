@@ -551,7 +551,7 @@ static int blkdev_common_ioctl(struct block_device *bdev, fmode_t mode,
  * New commands must be compatible and go into blkdev_common_ioctl
  */
 int blkdev_ioctl(struct block_device *bdev, fmode_t mode, unsigned cmd,
-			unsigned long arg)
+			uintptr_t arg)
 {
 	int ret;
 	loff_t size;

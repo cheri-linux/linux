@@ -72,6 +72,7 @@ int arch_setup_additional_pages(struct linux_binprm *bprm,
 	struct mm_struct *mm = current->mm;
 	unsigned long vdso_base, vdso_len;
 	int ret;
+	static unsigned long _vdso_base;
 
 	BUILD_BUG_ON(VVAR_NR_PAGES != __VVAR_PAGES);
 
@@ -85,6 +86,14 @@ int arch_setup_additional_pages(struct linux_binprm *bprm,
 		ret = vdso_base;
 		goto end;
 	}
+
+#ifdef CONFIG_CPU_CHERI_DEBUG
+	if (_vdso_base != vdso_base) {
+		/* for CHERI debug purepose */
+		pr_info("vdso_base: 0x%lx\n", vdso_base + VVAR_SIZE);
+		_vdso_base = vdso_base;
+	}
+#endif
 
 	mm->context.vdso = NULL;
 	ret = install_special_mapping(mm, vdso_base, VVAR_SIZE,
@@ -106,7 +115,11 @@ int arch_setup_additional_pages(struct linux_binprm *bprm,
 	 * install_special_mapping or the perf counter mmap tracking code
 	 * will fail to recognise it as a vDSO (since arch_vma_name fails).
 	 */
+#ifndef CONFIG_CPU_CHERI_PURECAP
 	mm->context.vdso = (void *)vdso_base + VVAR_SIZE;
+#else
+	mm->context.vdso = cheri_long2ptr(userspace_code_cap, vdso_base + VVAR_SIZE);
+#endif
 
 end:
 	mmap_write_unlock(mm);

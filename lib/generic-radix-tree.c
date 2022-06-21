@@ -44,7 +44,7 @@ static inline unsigned genradix_root_to_depth(struct genradix_root *r)
 
 static inline struct genradix_node *genradix_root_to_node(struct genradix_root *r)
 {
-	return (void *) ((unsigned long) r & ~GENRADIX_DEPTH_MASK);
+	return (void *) ((uintptr_t) r & ~GENRADIX_DEPTH_MASK);
 }
 
 /*
@@ -126,7 +126,7 @@ void *__genradix_ptr_alloc(struct __genradix *radix, size_t offset,
 
 		new_node->children[0] = n;
 		new_root = ((struct genradix_root *)
-			    ((unsigned long) new_node | (n ? level + 1 : 0)));
+			    ((uintptr_t) new_node | (n ? level + 1 : 0)));
 
 		if ((v = cmpxchg_release(&radix->root, r, new_root)) == r) {
 			v = new_root;

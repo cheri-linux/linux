@@ -1882,8 +1882,27 @@ static int copy_iovec_from_user(struct iovec *iov,
 {
 	unsigned long seg;
 
-	if (copy_from_user(iov, uvec, nr_segs * sizeof(*uvec)))
-		return -EFAULT;
+#ifdef CONFIG_CPU_CHERI_HYBRID
+	if (test_thread_flag(TIF_CHERIABI)) {
+		struct iovec_cap *ciov;
+		int i;
+		ciov = kmalloc_array(nr_segs, sizeof(struct iovec_cap), GFP_KERNEL);
+		if (!ciov)
+			return -ENOMEM;
+		if (copy_from_user(ciov, uvec, nr_segs*sizeof(*ciov))) {
+			return -EFAULT;
+		}
+		for (i = 0; i < nr_segs; i++) {
+			iov[i].iov_base = (void*)cheri_getaddress(ciov[i].iov_base);
+			iov[i].iov_len = ciov[i].iov_len;
+		}
+		kfree(ciov);
+	} else
+#endif
+	{
+		if (copy_from_user(iov, uvec, nr_segs * sizeof(*uvec)))
+			return -EFAULT;
+	}
 	for (seg = 0; seg < nr_segs; seg++) {
 		if ((ssize_t)iov[seg].iov_len < 0)
 			return -EINVAL;

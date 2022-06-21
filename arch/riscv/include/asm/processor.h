@@ -29,10 +29,16 @@ struct pt_regs;
 
 /* CPU-specific state of a task */
 struct thread_struct {
+#ifndef CONFIG_CPU_CHERI
 	/* Callee-saved registers */
 	unsigned long ra;
 	unsigned long sp;	/* Kernel mode stack */
 	unsigned long s[12];	/* s[0]: frame pointer */
+#else
+	register_t ra;
+	union { register_t sp; unsigned long _sp; };	/* Kernel mode stack */
+	register_t s[12];	/* s[0]: frame pointer */
+#endif
 	struct __riscv_d_ext_state fstate;
 	unsigned long bad_cause;
 };
@@ -45,9 +51,15 @@ static inline void arch_thread_struct_whitelist(unsigned long *offset,
 	*size = sizeof_field(struct thread_struct, fstate);
 }
 
+#ifndef CONFIG_CPU_CHERI_HYBRID
 #define INIT_THREAD {					\
-	.sp = sizeof(init_stack) + (long)&init_stack,	\
+	.sp = sizeof(init_stack) + (uintptr_t)&init_stack,	\
 }
+#else
+#define INIT_THREAD {					\
+	._sp = sizeof(init_stack) + (long)&init_stack,	\
+}
+#endif
 
 #define task_pt_regs(tsk)						\
 	((struct pt_regs *)(task_stack_page(tsk) + THREAD_SIZE		\
@@ -66,7 +78,7 @@ static inline void release_thread(struct task_struct *dead_task)
 {
 }
 
-extern unsigned long get_wchan(struct task_struct *p);
+extern uintptr_t get_wchan(struct task_struct *p);
 
 
 static inline void wait_for_interrupt(void)

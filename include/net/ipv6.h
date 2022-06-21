@@ -1122,7 +1122,7 @@ int inet6_release(struct socket *sock);
 int inet6_bind(struct socket *sock, struct sockaddr *uaddr, int addr_len);
 int inet6_getname(struct socket *sock, struct sockaddr *uaddr,
 		  int peer);
-int inet6_ioctl(struct socket *sock, unsigned int cmd, unsigned long arg);
+int inet6_ioctl(struct socket *sock, unsigned int cmd, uintptr_t arg);
 int inet6_compat_ioctl(struct socket *sock, unsigned int cmd,
 		unsigned long arg);
 

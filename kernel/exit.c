@@ -704,7 +704,7 @@ static void exit_notify(struct task_struct *tsk, int group_dead)
 static void check_stack_usage(void)
 {
 	static DEFINE_SPINLOCK(low_water_lock);
-	static int lowest_to_date = THREAD_SIZE;
+	static int lowest_to_date = THREAD_SIZE / 2;
 	unsigned long free;
 
 	free = stack_not_used(current);

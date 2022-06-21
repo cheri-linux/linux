@@ -45,6 +45,8 @@
 #include <asm/processor.h>
 #include <asm/csr.h>
 
+#include <linux/cheri.h>
+
 /*
  * low level task data that entry.S needs immediate access to
  * - this struct should fit entirely inside of one cache line
@@ -61,8 +63,13 @@ struct thread_info {
 	 * exception.  SP is also saved to the stack it can be recovered when
 	 * overwritten.
 	 */
+#ifndef CONFIG_CPU_CHERI
 	long			kernel_sp;	/* Kernel stack pointer */
 	long			user_sp;	/* User stack pointer */
+#else
+	register_t		kernel_sp;	/* Kernel stack pointer */
+	register_t		user_sp;	/* User stack pointer */
+#endif
 	int			cpu;
 };
 
@@ -97,6 +104,7 @@ struct thread_info {
 #define TIF_SECCOMP		8	/* syscall secure computing */
 #define TIF_NOTIFY_SIGNAL	9	/* signal notifications exist */
 #define TIF_UPROBE		10	/* uprobe breakpoint or singlestep */
+#define TIF_CHERIABI		11	/* cheri abi */
 
 #define _TIF_SYSCALL_TRACE	(1 << TIF_SYSCALL_TRACE)
 #define _TIF_NOTIFY_RESUME	(1 << TIF_NOTIFY_RESUME)
@@ -107,6 +115,7 @@ struct thread_info {
 #define _TIF_SECCOMP		(1 << TIF_SECCOMP)
 #define _TIF_NOTIFY_SIGNAL	(1 << TIF_NOTIFY_SIGNAL)
 #define _TIF_UPROBE		(1 << TIF_UPROBE)
+#define _TIF_CHERIABI		(1 << TIF_CHERIABI)
 
 #define _TIF_WORK_MASK \
 	(_TIF_NOTIFY_RESUME | _TIF_SIGPENDING | _TIF_NEED_RESCHED | \
