@@ -1302,7 +1302,7 @@ config CPU_CHERI_PURECAP
 	bool
 
 config CPU_CHERI_DEBUG
-	def_bool n
+	def_bool y
 
 source "kernel/gcov/Kconfig"
 
