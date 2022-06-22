@@ -198,8 +198,6 @@ setup_trap_vector:
 	cspecialw stdc, ct0
 	cspecialr ct0, pcc
 	csetaddr ct0, ct0, a0
-	li t1, 1
-	csetflags ct0, ct0, t1
 	cspecialw stcc, ct0
 #endif
 	csrw CSR_SCRATCH, zero

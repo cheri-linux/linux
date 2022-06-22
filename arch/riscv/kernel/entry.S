@@ -18,8 +18,6 @@
 .set resume_kernel, restore_all
 #endif
 
-#define CAPMODE
-
 ENTRY(handle_exception)
 #ifndef CONFIG_CPU_CHERI
 	/*
@@ -105,8 +103,6 @@ _save_context:
 	csrw CSR_SCRATCH, x0
 
 #else	/* CHERI */
-.option push
-.option capmode
 	/*
 	 * If coming from userspace, preserve the user thread pointer and load
 	 * the kernel thread pointer.  If we came from the kernel, the scratch
@@ -117,61 +113,44 @@ _save_context:
 
 _restore_kernel_tpsp:
 	cspecialr ctp, sscratchc
-#ifdef CAPMODE
-	// preserve ct0
-	cspecialw sscratchc, ct0
-	// build valid ctp
-	cspecialr ct0, stdc
-	csetaddr ct0, ct0, tp
-	cmove ctp, ct0
-	// build valid csp
-	csetaddr ct0, ct0, sp
-	cmove csp, ct0
-	csc csp, TASK_TI_KERNEL_SP(ctp)
-	// restore ct0
-	cspecialr ct0, sscratchc
-	// store ctp back
-	cspecialw sscratchc, ctp
-#else
-	csc csp, TASK_TI_KERNEL_SP(ctp)
-#endif
+	sc csp, TASK_TI_KERNEL_SP(tp)
 _save_context:
-	csc csp, TASK_TI_USER_SP(ctp)
-	clc csp, TASK_TI_KERNEL_SP(ctp)
+	sc csp, TASK_TI_USER_SP(tp)
+	lc csp, TASK_TI_KERNEL_SP(tp)
 	cincoffset csp, csp, -(PT_SIZE_ON_STACK)
-	csc c1,  PT_RA(csp)
-	csc c3,  PT_GP(csp)
-	csc c5,  PT_T0(csp)
-	csc c6,  PT_T1(csp)
-	csc c7,  PT_T2(csp)
-	csc c8,  PT_S0(csp)
-	csc c9,  PT_S1(csp)
-	csc c10, PT_A0(csp)
-	csc c11, PT_A1(csp)
-	csc c12, PT_A2(csp)
-	csc c13, PT_A3(csp)
-	csc c14, PT_A4(csp)
-	csc c15, PT_A5(csp)
-	csc c16, PT_A6(csp)
-	csc c17, PT_A7(csp)
-	csc c18, PT_S2(csp)
-	csc c19, PT_S3(csp)
-	csc c20, PT_S4(csp)
-	csc c21, PT_S5(csp)
-	csc c22, PT_S6(csp)
-	csc c23, PT_S7(csp)
-	csc c24, PT_S8(csp)
-	csc c25, PT_S9(csp)
-	csc c26, PT_S10(csp)
-	csc c27, PT_S11(csp)
-	csc c28, PT_T3(csp)
-	csc c29, PT_T4(csp)
-	csc c30, PT_T5(csp)
-	csc c31, PT_T6(csp)
+	sc c1,  PT_RA(sp)
+	sc c3,  PT_GP(sp)
+	sc c5,  PT_T0(sp)
+	sc c6,  PT_T1(sp)
+	sc c7,  PT_T2(sp)
+	sc c8,  PT_S0(sp)
+	sc c9,  PT_S1(sp)
+	sc c10, PT_A0(sp)
+	sc c11, PT_A1(sp)
+	sc c12, PT_A2(sp)
+	sc c13, PT_A3(sp)
+	sc c14, PT_A4(sp)
+	sc c15, PT_A5(sp)
+	sc c16, PT_A6(sp)
+	sc c17, PT_A7(sp)
+	sc c18, PT_S2(sp)
+	sc c19, PT_S3(sp)
+	sc c20, PT_S4(sp)
+	sc c21, PT_S5(sp)
+	sc c22, PT_S6(sp)
+	sc c23, PT_S7(sp)
+	sc c24, PT_S8(sp)
+	sc c25, PT_S9(sp)
+	sc c26, PT_S10(sp)
+	sc c27, PT_S11(sp)
+	sc c28, PT_T3(sp)
+	sc c29, PT_T4(sp)
+	sc c30, PT_T5(sp)
+	sc c31, PT_T6(sp)
 
 	/* store ddc */
 	cspecialr ct0, ddc
-	csc ct0, PT_DDC(csp)
+	sc ct0, PT_DDC(sp)
 	/* set kernel ddc */
 	cspecialr ct0, stdc
 	cspecialw ddc, ct0
@@ -185,18 +164,18 @@ _save_context:
 	 */
 	li t0, SR_SUM | SR_FS
 
-	clc cs0, TASK_TI_USER_SP(ctp)
+	lc cs0, TASK_TI_USER_SP(tp)
 	csrrc s1, CSR_STATUS, t0
 	cspecialr cs2, sepcc
 	csrr s3, CSR_TVAL
 	csrr s4, CSR_CAUSE
 	cspecialr cs5, sscratchc
-	csc cs0, PT_SP(csp)
-	csd s1, PT_STATUS(csp)
-	csc cs2, PT_EPC(csp)
-	csd s3, PT_BADADDR(csp)
-	csd s4, PT_CAUSE(csp)
-	csc cs5, PT_TP(csp)
+	sc cs0, PT_SP(sp)
+	sd s1, PT_STATUS(sp)
+	sc cs2, PT_EPC(sp)
+	sd s3, PT_BADADDR(sp)
+	sd s4, PT_CAUSE(sp)
+	sc cs5, PT_TP(sp)
 
 	/*
 	 * Set the scratch register to 0, so that if a recursive exception
@@ -205,14 +184,6 @@ _save_context:
 	cmove ct0, cnull
 	cspecialw sscratchc, ct0
 
-#ifdef CAPMODE
-	/* Switch to non-capmode PCC. */
-	cllc ct0, 1f
-	csetflags ct0, ct0, x0
-	cjr ct0
-1:
-#endif
-.option pop
 #endif	/* endof CHERI */
 
 	/* Load the global pointer */
@@ -323,17 +294,14 @@ handle_syscall:
 	addi s2, s2, 0x4
 	REG_S s2, PT_EPC(sp)
 #else
-.option push
-.option capmode
 	 /* save the initial A0 value (needed in signal handlers) */
-	csc ca0, PT_ORIG_A0(csp)
+	sc ca0, PT_ORIG_A0(sp)
 	/*
 	 * Advance SEPC to avoid executing the original
 	 * scall instruction on sret
 	 */
 	cincoffset cs2, cs2, 0x4
-	csc cs2, PT_EPC(csp)
-.option pop
+	sc cs2, PT_EPC(sp)
 #endif
 	/* Trace syscalls, but only if requested by the user. */
 	REG_L t0, TASK_TI_FLAGS(tp)
@@ -361,11 +329,8 @@ ret_from_syscall:
 	/* Set user a0 to kernel a0 */
 	REG_S a0, PT_A0(sp)
 #else
-.option push
-.option capmode
 	/* Set user a0 to kernel a0 */
-	csc ca0, PT_A0(csp)
-.option pop
+	sc ca0, PT_A0(sp)
 #endif
 	/*
 	 * We didn't execute the actual syscall.
@@ -483,36 +448,10 @@ restore_all:
 	REG_L x2,  PT_SP(sp)
 
 #else	/* CHERI */
-#ifdef CAPMODE
-	/* Switch to capmode PCC. */
-	lla t1, 1f
-	cspecialr ct0, pcc
-	csetaddr ct0, ct0, t1
-	li t1, 1
-	csetflags ct0, ct0, t1
-.option push
-.option capmode
-#ifdef __riscv_xcheri_mode_dependent_jumps
-	jr.cap  ct0
-#else
-	cjr     ct0
-#endif
-1:
-	// build valid ctp
-	cspecialr ct0, stdc
-	csetaddr ct0, ct0, tp
-	cmove ctp, ct0
-	// build valid csp
-	csetaddr ct0, ct0, sp
-	cmove csp, ct0
-#else
-.option push
-.option capmode
-#endif
 
 	/* Save unwound kernel stack pointer in thread_info */
 	cincoffset cs0, csp, PT_SIZE_ON_STACK
-	csc cs0, TASK_TI_KERNEL_SP(ctp)
+	sc cs0, TASK_TI_KERNEL_SP(tp)
 
 	/*
 	 * Save TP into the scratch register , so we can find the kernel data
@@ -521,7 +460,7 @@ restore_all:
 	cspecialw sscratchc, ctp
 
 restore_all:
-	cld a0, PT_STATUS(csp)
+	ld a0, PT_STATUS(sp)
 	/*
 	 * The current load reservation is effectively part of the processor's
 	 * state, in the sense that load reservations cannot be shared between
@@ -539,50 +478,50 @@ restore_all:
 	 * completes, implementations are allowed to expand reservations to be
 	 * arbitrarily large.
 	 */
-	clc  ca2, PT_EPC(csp)
-	csc.c.aqrl x0, ca2, PT_EPC(csp)
+	lc  ca2, PT_EPC(sp)
+	sc.c.aqrl x0, ca2, PT_EPC(sp)
 
 	csrw CSR_STATUS, a0
 
 	cspecialw sepcc, ca2
 
 	/* restore ddc */
-	clc ct0, PT_DDC(csp)
+	lc ct0, PT_DDC(sp)
 	cspecialw ddc, ct0
 
-	clc c1,  PT_RA(csp)
-	clc c3,  PT_GP(csp)
-	clc c4,  PT_TP(csp)
-	clc c5,  PT_T0(csp)
-	clc c6,  PT_T1(csp)
-	clc c7,  PT_T2(csp)
-	clc c8,  PT_S0(csp)
-	clc c9,  PT_S1(csp)
-	clc c10, PT_A0(csp)
-	clc c11, PT_A1(csp)
-	clc c12, PT_A2(csp)
-	clc c13, PT_A3(csp)
-	clc c14, PT_A4(csp)
-	clc c15, PT_A5(csp)
-	clc c16, PT_A6(csp)
-	clc c17, PT_A7(csp)
-	clc c18, PT_S2(csp)
-	clc c19, PT_S3(csp)
-	clc c20, PT_S4(csp)
-	clc c21, PT_S5(csp)
-	clc c22, PT_S6(csp)
-	clc c23, PT_S7(csp)
-	clc c24, PT_S8(csp)
-	clc c25, PT_S9(csp)
-	clc c26, PT_S10(csp)
-	clc c27, PT_S11(csp)
-	clc c28, PT_T3(csp)
-	clc c29, PT_T4(csp)
-	clc c30, PT_T5(csp)
-	clc c31, PT_T6(csp)
+	lc c1,  PT_RA(sp)
+	lc c3,  PT_GP(sp)
+	lc c4,  PT_TP(sp)
+	lc c5,  PT_T0(sp)
+	lc c6,  PT_T1(sp)
+	lc c7,  PT_T2(sp)
+	lc c8,  PT_S0(sp)
+	lc c9,  PT_S1(sp)
+	lc c10, PT_A0(sp)
+	lc c11, PT_A1(sp)
+	lc c12, PT_A2(sp)
+	lc c13, PT_A3(sp)
+	lc c14, PT_A4(sp)
+	lc c15, PT_A5(sp)
+	lc c16, PT_A6(sp)
+	lc c17, PT_A7(sp)
+	lc c18, PT_S2(sp)
+	lc c19, PT_S3(sp)
+	lc c20, PT_S4(sp)
+	lc c21, PT_S5(sp)
+	lc c22, PT_S6(sp)
+	lc c23, PT_S7(sp)
+	lc c24, PT_S8(sp)
+	lc c25, PT_S9(sp)
+	lc c26, PT_S10(sp)
+	lc c27, PT_S11(sp)
+	lc c28, PT_T3(sp)
+	lc c29, PT_T4(sp)
+	lc c30, PT_T5(sp)
+	lc c31, PT_T6(sp)
 
-	clc c2,  PT_SP(csp)
-.option pop
+	lc c2,  PT_SP(sp)
+//.option pop
 #endif	/* endof CHERI */
 
 #ifdef CONFIG_RISCV_M_MODE
