@@ -10,6 +10,10 @@
 
 #include <linux/types.h>
 
+#ifdef __CHERI__
+#include <linux/cheri.h>
+#endif
+
 /*
  * User-mode register state for core dumps, ptrace, sigcontext
  *
@@ -17,6 +21,41 @@
  * struct user_regs_struct must form a prefix of struct pt_regs.
  */
 struct user_regs_struct {
+#ifdef __CHERI__
+	register_t pc;
+	register_t ra;
+	register_t sp;
+	register_t gp;
+	register_t tp;
+	register_t t0;
+	register_t t1;
+	register_t t2;
+	register_t s0;
+	register_t s1;
+	register_t a0;
+	register_t a1;
+	register_t a2;
+	register_t a3;
+	register_t a4;
+	register_t a5;
+	register_t a6;
+	register_t a7;
+	register_t s2;
+	register_t s3;
+	register_t s4;
+	register_t s5;
+	register_t s6;
+	register_t s7;
+	register_t s8;
+	register_t s9;
+	register_t s10;
+	register_t s11;
+	register_t t3;
+	register_t t4;
+	register_t t5;
+	register_t t6;
+	register_t ddc;
+#else
 	unsigned long pc;
 	unsigned long ra;
 	unsigned long sp;
@@ -49,6 +88,7 @@ struct user_regs_struct {
 	unsigned long t4;
 	unsigned long t5;
 	unsigned long t6;
+#endif
 };
 
 struct __riscv_f_ext_state {

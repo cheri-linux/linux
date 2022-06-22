@@ -33,6 +33,13 @@ enum vvar_pages {
 static unsigned int vdso_pages __ro_after_init;
 static struct page **vdso_pagelist __ro_after_init;
 
+#ifdef CONFIG_CPU_CHERI
+extern char vdso_cheri_start[], vdso_cheri_end[];
+
+static unsigned int vdso_cheri_pages __ro_after_init;
+static struct page **vdso_cheri_pagelist __ro_after_init;
+#endif
+
 /*
  * The vDSO data page.
  */
@@ -62,9 +69,83 @@ static int __init vdso_init(void)
 	}
 	vdso_pagelist[i] = virt_to_page(vdso_data);
 
+#ifdef CONFIG_CPU_CHERI
+	vdso_cheri_pages = (vdso_cheri_end - vdso_cheri_start) >> PAGE_SHIFT;
+	vdso_cheri_pagelist =
+		kcalloc(vdso_cheri_pages + VVAR_NR_PAGES, sizeof(struct page *), GFP_KERNEL);
+	if (unlikely(vdso_cheri_pagelist == NULL)) {
+		pr_err("vdso cheri: pagelist allocation failed\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < vdso_cheri_pages; i++) {
+		struct page *pg;
+
+		pg = virt_to_page(vdso_cheri_start + (i << PAGE_SHIFT));
+		vdso_cheri_pagelist[i] = pg;
+	}
+	vdso_cheri_pagelist[i] = virt_to_page(vdso_data);
+#endif
+
 	return 0;
 }
 arch_initcall(vdso_init);
+
+#ifdef CONFIG_CPU_CHERI
+int arch_setup_additional_cheri_pages(struct linux_binprm *bprm,
+	int uses_interp)
+{
+	struct mm_struct *mm = current->mm;
+	unsigned long vdso_base, vdso_len;
+	int ret;
+	static unsigned long _vdso_base;
+
+	vdso_len = (vdso_cheri_pages + VVAR_NR_PAGES) << PAGE_SHIFT;
+
+	if (mmap_write_lock_killable(mm))
+		return -EINTR;
+
+	vdso_base = get_unmapped_area(NULL, 0, vdso_len, 0, 0);
+	if (IS_ERR_VALUE(vdso_base)) {
+		ret = vdso_base;
+		goto end;
+	}
+
+#ifdef CONFIG_CPU_CHERI_DEBUG
+	if (_vdso_base != vdso_base) {
+		/* for CHERI debug purepose */
+		pr_info("vdso_base: 0x%lx\n", vdso_base + VVAR_SIZE);
+		_vdso_base = vdso_base;
+	}
+#endif
+
+	mm->context.vdso = NULL;
+	ret = install_special_mapping(mm, vdso_base, VVAR_SIZE,
+		(VM_READ | VM_MAYREAD), &vdso_cheri_pagelist[vdso_cheri_pages]);
+	if (unlikely(ret))
+		goto end;
+
+	ret =
+	   install_special_mapping(mm, vdso_base + VVAR_SIZE,
+		vdso_cheri_pages << PAGE_SHIFT,
+		(VM_READ | VM_EXEC | VM_MAYREAD | VM_MAYWRITE | VM_MAYEXEC),
+		vdso_cheri_pagelist);
+
+	if (unlikely(ret))
+		goto end;
+
+	/*
+	 * Put vDSO base into mm struct. We need to do this before calling
+	 * install_special_mapping or the perf counter mmap tracking code
+	 * will fail to recognise it as a vDSO (since arch_vma_name fails).
+	 */
+	mm->context.vdso = (void *)vdso_base + VVAR_SIZE;
+
+end:
+	mmap_write_unlock(mm);
+	return ret;
+}
+#endif
 
 int arch_setup_additional_pages(struct linux_binprm *bprm,
 	int uses_interp)
@@ -74,6 +155,11 @@ int arch_setup_additional_pages(struct linux_binprm *bprm,
 	int ret;
 
 	BUILD_BUG_ON(VVAR_NR_PAGES != __VVAR_PAGES);
+
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI))
+		return arch_setup_additional_cheri_pages(bprm, uses_interp);
+#endif
 
 	vdso_len = (vdso_pages + VVAR_NR_PAGES) << PAGE_SHIFT;
 

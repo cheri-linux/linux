@@ -1292,6 +1292,12 @@ config ARCH_HAS_ELFCORE_COMPAT
 config ARCH_HAS_PARANOID_L1D_FLUSH
 	bool
 
+config CPU_CHERI
+	bool
+
+config CPU_CHERI_DEBUG
+	def_bool n
+
 source "kernel/gcov/Kconfig"
 
 source "scripts/gcc-plugins/Kconfig"

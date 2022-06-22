@@ -297,7 +297,14 @@ create_elf_tables(struct linux_binprm *bprm, const struct elfhdr *exec,
 	ei_index = elf_info - (elf_addr_t *)mm->saved_auxv;
 	sp = STACK_ADD(p, ei_index);
 
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI))
+		items = ((argc + 1) + (envc + 1))*2 + 1;
+	else
+		items = (argc + 1) + (envc + 1) + 1;
+#else
 	items = (argc + 1) + (envc + 1) + 1;
+#endif
 	bprm->p = STACK_ROUND(sp, items);
 
 	/* Point sp at the lowest address on the stack */
@@ -324,28 +331,67 @@ create_elf_tables(struct linux_binprm *bprm, const struct elfhdr *exec,
 	if (put_user(argc, sp++))
 		return -EFAULT;
 
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI)){
+		sp++;
+	}
+#endif
 	/* Populate list of argv pointers back to argv strings. */
 	p = mm->arg_end = mm->arg_start;
 	while (argc-- > 0) {
 		size_t len;
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI)){
+		void * __usercap cp = cheri_setaddress(cheri_getdefault(), p);
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+		cp = cheri_csetbounds(cp, len);
+		if (__put_user(cp, (voidcap_t *)__builtin_assume_aligned(sp, sizeof(voidcap_t))))
+			return -EFAULT;
+		sp+=2;
+	} else {
 		if (put_user((elf_addr_t)p, sp++))
 			return -EFAULT;
 		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+	}
+#else
+		if (put_user((elf_addr_t)p, sp++))
+			return -EFAULT;
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+#endif
 		if (!len || len > MAX_ARG_STRLEN)
 			return -EINVAL;
 		p += len;
 	}
 	if (put_user(0, sp++))
 		return -EFAULT;
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI))
+		sp++;
+#endif
 	mm->arg_end = p;
 
 	/* Populate list of envp pointers back to envp strings. */
 	mm->env_end = mm->env_start = p;
 	while (envc-- > 0) {
 		size_t len;
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI)){
+		void * __usercap cp = cheri_setaddress(cheri_getdefault(), p);
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+		cp = cheri_csetbounds(cp, len);
+		if (put_user(cp, (voidcap_t *)__builtin_assume_aligned(sp, sizeof(voidcap_t))))
+			return -EFAULT;
+		sp+=2;
+	} else {
 		if (put_user((elf_addr_t)p, sp++))
 			return -EFAULT;
 		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+	}
+#else
+		if (__put_user((elf_addr_t)p, sp++))
+			return -EFAULT;
+		len = strnlen_user((void __user *)p, MAX_ARG_STRLEN);
+#endif
 		if (!len || len > MAX_ARG_STRLEN)
 			return -EINVAL;
 		p += len;
@@ -1260,11 +1306,22 @@ out_free_interp:
 
 	set_binfmt(&elf_format);
 
+#ifdef CONFIG_CPU_CHERI
+	update_thread_flag(TIF_CHERIABI, elf_check_cheriabi(elf_ex));
+#endif
+
 #ifdef ARCH_HAS_SETUP_ADDITIONAL_PAGES
 	retval = ARCH_SETUP_ADDITIONAL_PAGES(bprm, elf_ex, !!interpreter);
 	if (retval < 0)
 		goto out;
 #endif /* ARCH_HAS_SETUP_ADDITIONAL_PAGES */
+
+#ifdef CONFIG_CPU_CHERI_DEBUG
+	if (!randomize_va_space)
+		// for knowing libc load address for gdb
+		pr_info_once("load_addr: %#llx, interp_load_addr: %#llx\n",
+				load_addr, interp_load_addr);
+#endif
 
 	retval = create_elf_tables(bprm, elf_ex, interp_load_addr,
 				   e_entry, phdr_addr);

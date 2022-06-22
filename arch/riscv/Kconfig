@@ -348,6 +348,13 @@ config RISCV_ISA_C
 
 	   If you don't know what to do here, say Y.
 
+config RISCV_CHERI
+	bool "Provide RISCV CHERI instructions support"
+	default n
+	select CPU_CHERI
+	help
+	   Enable CHERI user space support
+
 menu "supported PMU type"
 	depends on PERF_EVENTS
 

@@ -27,7 +27,17 @@
 #define SZREG		__REG_SEL(8, 4)
 #define LGREG		__REG_SEL(3, 2)
 
-#if __SIZEOF_POINTER__ == 8
+#if __SIZEOF_POINTER__ == 16
+#ifdef __ASSEMBLY__
+#define RISCV_PTR               .chericap
+#define RISCV_SZPTR             16
+#define RISCV_LGPTR             4
+#else
+#define RISCV_PTR               ".chericap"
+#define RISCV_SZPTR             "16"
+#define RISCV_LGPTR             "4"
+#endif
+#elif __SIZEOF_POINTER__ == 8
 #ifdef __ASSEMBLY__
 #define RISCV_PTR		.dword
 #define RISCV_SZPTR		8

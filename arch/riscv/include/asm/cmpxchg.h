@@ -316,7 +316,7 @@
 			"	fence rw, rw\n"				\
 			"1:\n"						\
 			: "=&r" (__ret), "=&r" (__rc), "+A" (*__ptr)	\
-			: "rJ" ((long)__old), "rJ" (__new)		\
+			: "rJ" ((long)__old), "rJ" ((long)__new)	\
 			: "memory");					\
 		break;							\
 	case 8:								\

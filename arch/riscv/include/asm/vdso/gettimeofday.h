@@ -15,8 +15,13 @@ static __always_inline
 int gettimeofday_fallback(struct __kernel_old_timeval *_tv,
 			  struct timezone *_tz)
 {
+#ifdef __CHERI_PURE_CAPABILITY__
+	register struct __kernel_old_timeval *tv asm("ca0") = _tv;
+	register struct timezone *tz asm("ca1") = _tz;
+#else
 	register struct __kernel_old_timeval *tv asm("a0") = _tv;
 	register struct timezone *tz asm("a1") = _tz;
+#endif
 	register long ret asm("a0");
 	register long nr asm("a7") = __NR_gettimeofday;
 
@@ -32,7 +37,11 @@ static __always_inline
 long clock_gettime_fallback(clockid_t _clkid, struct __kernel_timespec *_ts)
 {
 	register clockid_t clkid asm("a0") = _clkid;
+#ifdef __CHERI_PURE_CAPABILITY__
+	register struct __kernel_timespec *ts asm("ca1") = _ts;
+#else
 	register struct __kernel_timespec *ts asm("a1") = _ts;
+#endif
 	register long ret asm("a0");
 	register long nr asm("a7") = __NR_clock_gettime;
 
@@ -48,7 +57,11 @@ static __always_inline
 int clock_getres_fallback(clockid_t _clkid, struct __kernel_timespec *_ts)
 {
 	register clockid_t clkid asm("a0") = _clkid;
+#ifdef __CHERI_PURE_CAPABILITY__
+	register struct __kernel_timespec *ts asm("ca1") = _ts;
+#else
 	register struct __kernel_timespec *ts asm("a1") = _ts;
+#endif
 	register long ret asm("a0");
 	register long nr asm("a7") = __NR_clock_getres;
 
@@ -73,7 +86,14 @@ static __always_inline u64 __arch_get_hw_counter(s32 clock_mode,
 
 static __always_inline const struct vdso_data *__arch_get_vdso_data(void)
 {
+#ifdef __CHERI_PURE_CAPABILITY__
+	const struct vdso_data *ret;
+	asm volatile ("cllc %0, _vdso_data\n"
+		      : "=C" (ret) ::);
+	return ret;
+#else
 	return _vdso_data;
+#endif
 }
 
 #endif /* !__ASSEMBLY__ */

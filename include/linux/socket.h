@@ -83,6 +83,23 @@ struct mmsghdr {
 	unsigned int        msg_len;
 };
 
+#ifdef CONFIG_CPU_CHERI
+struct user_msghdr_cap {
+	void		*__usercap msg_name;	/* ptr to socket address structure */
+	int		msg_namelen;		/* size of socket address structure */
+	struct iovec	*__usercap msg_iov;	/* scatter/gather array */
+	__kernel_size_t	msg_iovlen;		/* # elements in msg_iov */
+	void		*__usercap msg_control;	/* ancillary data */
+	__kernel_size_t	msg_controllen;		/* ancillary data buffer length */
+	unsigned int	msg_flags;		/* flags on received message */
+};
+
+struct mmsghdr_cap {
+	struct user_msghdr_cap	msg_hdr;
+	unsigned int		msg_len;
+};
+#endif
+
 /*
  *	POSIX 1003.1g - ancillary data object information
  *	Ancillary data consists of a sequence of pairs of

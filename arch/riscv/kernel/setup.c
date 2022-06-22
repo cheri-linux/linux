@@ -33,6 +33,10 @@
 #include <asm/kasan.h>
 #include <asm/efi.h>
 
+#ifdef CONFIG_CPU_CHERI
+#include <asm/cheri.h>
+#endif
+
 #include "head.h"
 
 #if defined(CONFIG_DUMMY_CONSOLE) || defined(CONFIG_EFI)
@@ -305,6 +309,10 @@ void __init setup_arch(char **cmdline_p)
 #endif
 
 	riscv_fill_hwcap();
+
+#ifdef CONFIG_CPU_CHERI
+	//cheri_init();
+#endif
 }
 
 static int __init topology_init(void)

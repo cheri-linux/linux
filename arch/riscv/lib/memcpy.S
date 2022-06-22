@@ -6,6 +6,10 @@
 #include <linux/linkage.h>
 #include <asm/asm.h>
 
+#ifdef CONFIG_CPU_CHERI
+#include <asm/cherireg.h>
+#endif
+
 /* void *memcpy(void *, const void *, size_t) */
 ENTRY(__memcpy)
 WEAK(memcpy)
@@ -106,3 +110,35 @@ WEAK(memcpy)
 6:
 	ret
 END(__memcpy)
+
+#ifdef CONFIG_CPU_CHERI
+
+/* aligned version */
+ENTRY(__cheri_memcpy_aligned)
+        beqz a2, return
+        and a2, a2, -CHERICAP_SIZE
+        add a2, a1, a2
+#if 0
+.option push
+.option capmode
+	cfromptr ca0, ddc, a0
+	cfromptr ca1, ddc, a1
+loop:
+        clc ct0, 0(ca1)
+        csc ct0, 0(ca0)
+	cincoffset ca1, ca1, CHERICAP_SIZE
+	cincoffset ca0, ca0, CHERICAP_SIZE
+.option pop
+#else
+loop:
+        lc ct0, 0(a1)
+        sc ct0, 0(a0)
+        addi a1, a1, CHERICAP_SIZE
+        addi a0, a0, CHERICAP_SIZE
+#endif
+        bne a1, a2, loop
+return:
+        jr      ra
+END(__cheri_memcpy_aligned)
+
+#endif

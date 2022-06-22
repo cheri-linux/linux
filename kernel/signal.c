@@ -64,12 +64,12 @@ static struct kmem_cache *sigqueue_cachep;
 
 int print_fatal_signals __read_mostly;
 
-static void __user *sig_handler(struct task_struct *t, int sig)
+static __sighandler_t sig_handler(struct task_struct *t, int sig)
 {
 	return t->sighand->action[sig - 1].sa.sa_handler;
 }
 
-static inline bool sig_handler_ignored(void __user *handler, int sig)
+static inline bool sig_handler_ignored(__sighandler_t handler, int sig)
 {
 	/* Is it explicitly or implicitly ignored? */
 	return handler == SIG_IGN ||
@@ -78,7 +78,7 @@ static inline bool sig_handler_ignored(void __user *handler, int sig)
 
 static bool sig_task_ignored(struct task_struct *t, int sig, bool force)
 {
-	void __user *handler;
+	__sighandler_t  handler;
 
 	handler = sig_handler(t, sig);
 
@@ -554,7 +554,7 @@ flush_signal_handlers(struct task_struct *t, int force_default)
 
 bool unhandled_signal(struct task_struct *tsk, int sig)
 {
-	void __user *handler = tsk->sighand->action[sig-1].sa.sa_handler;
+	__sighandler_t handler = tsk->sighand->action[sig-1].sa.sa_handler;
 	if (is_global_init(tsk))
 		return true;
 
@@ -4415,17 +4415,48 @@ SYSCALL_DEFINE4(rt_sigaction, int, sig,
 	/* XXX: Don't preclude handling different sized sigset_t's.  */
 	if (sigsetsize != sizeof(sigset_t))
 		return -EINVAL;
-
+#ifndef CONFIG_CPU_CHERI
 	if (act && copy_from_user(&new_sa.sa, act, sizeof(new_sa.sa)))
 		return -EFAULT;
-
+#else
+	if (test_thread_flag(TIF_CHERIABI)) {
+		if (act && __cheri_copy_from_user(&new_sa.sa, act, sizeof(new_sa.sa)))
+			return -EFAULT;
+	} else if (act) {
+		struct lsigaction sa;
+		if (copy_from_user(&sa, act, sizeof(sa)))
+			return -EFAULT;
+		new_sa.sa.sa_handler = (__sighandler_t)sa.sa_handler;
+		new_sa.sa.sa_flags = sa.sa_flags;
+#ifdef __ARCH_HAS_SA_RESTORER
+		BUG();
+#endif
+		new_sa.sa.sa_mask = sa.sa_mask;
+	}
+#endif
 	ret = do_sigaction(sig, act ? &new_sa : NULL, oact ? &old_sa : NULL);
 	if (ret)
 		return ret;
 
+#ifndef CONFIG_CPU_CHERI
 	if (oact && copy_to_user(oact, &old_sa.sa, sizeof(old_sa.sa)))
 		return -EFAULT;
-
+#else
+	if (test_thread_flag(TIF_CHERIABI)) {
+		if (oact && __cheri_copy_to_user(oact, &old_sa.sa, sizeof(old_sa.sa)))
+			return -EFAULT;
+	} else if (oact) {
+		struct lsigaction sa;
+		sa.sa_handler = (__cheri_fromcap __lsighandler_t)old_sa.sa.sa_handler;
+		sa.sa_flags = old_sa.sa.sa_flags;
+#ifdef __ARCH_HAS_SA_RESTORER
+		BUG();
+#endif
+		sa.sa_mask = old_sa.sa.sa_mask;
+		if (copy_to_user(oact, &sa, sizeof(sa)))
+			return -EFAULT;
+	}
+#endif
 	return 0;
 }
 #ifdef CONFIG_COMPAT

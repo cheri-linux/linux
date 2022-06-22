@@ -416,7 +416,16 @@ static const char __user *get_user_arg_ptr(struct user_arg_ptr argv, int nr)
 		return compat_ptr(compat);
 	}
 #endif
-
+#ifdef CONFIG_CPU_CHERI
+	if (test_thread_flag(TIF_CHERIABI)) {
+		typedef const char __user * __capability const __user * uargv_t;
+		uargv_t _argv = (uargv_t)__builtin_assume_aligned(argv.ptr.native, 16);
+		const char *__usercap cap;
+		if (get_user(cap, _argv + nr))
+			return ERR_PTR(-EFAULT);
+		return (__cheri_fromcap const char __user *)cap;
+	}
+#endif
 	if (get_user(native, argv.ptr.native + nr))
 		return ERR_PTR(-EFAULT);
 

@@ -17,7 +17,11 @@ int fixup_exception(struct pt_regs *regs)
 
 	fixup = search_exception_tables(regs->epc);
 	if (fixup) {
+#ifndef CONFIG_CPU_CHERI
 		regs->epc = fixup->fixup;
+#else
+		regs->epc = cheri_long_code(fixup->fixup);
+#endif
 		return 1;
 	}
 	return 0;

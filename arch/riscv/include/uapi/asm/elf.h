@@ -14,8 +14,16 @@
 
 #include <asm/ptrace.h>
 
+#ifdef __CHERI__
+#include <linux/cheri.h>
+#endif
+
 /* ELF register definitions */
+#ifdef __CHERI__
+typedef register_t elf_greg_t;
+#else
 typedef unsigned long elf_greg_t;
+#endif
 typedef struct user_regs_struct elf_gregset_t;
 #define ELF_NGREG (sizeof(elf_gregset_t) / sizeof(elf_greg_t))
 

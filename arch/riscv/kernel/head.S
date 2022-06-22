@@ -184,12 +184,24 @@ secondary_start_common:
 setup_trap_vector:
 	/* Set trap vector to exception handler */
 	la a0, handle_exception
+#ifndef CONFIG_CPU_CHERI
 	csrw CSR_TVEC, a0
 
 	/*
 	 * Set sup0 scratch register to 0, indicating to exception vector that
 	 * we are presently executing in kernel.
 	 */
+#else
+	cmove ct0, cnull
+	cspecialw sscratchc, ct0
+	cspecialr ct0, ddc
+	cspecialw stdc, ct0
+	cspecialr ct0, pcc
+	csetaddr ct0, ct0, a0
+	li t1, 1
+	csetflags ct0, ct0, t1
+	cspecialw stcc, ct0
+#endif
 	csrw CSR_SCRATCH, zero
 	ret
 
@@ -391,6 +403,10 @@ ENTRY(reset_regs)
 	li	t5, 0
 	li	t6, 0
 	csrw	CSR_SCRATCH, 0
+#ifdef CONFIG_CPU_CHERI
+	cmove ct0, cnull
+	cspecialw sscratchc, ct0
+#endif
 
 #ifdef CONFIG_FPU
 	csrr	t0, CSR_MISA

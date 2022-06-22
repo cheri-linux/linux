@@ -3,6 +3,10 @@
 #include <asm/asm.h>
 #include <asm/csr.h>
 
+#ifdef CONFIG_CPU_CHERI
+#include <asm/cherireg.h>
+#endif
+
 	.macro fixup op reg addr lbl
 100:
 	\op \reg, \addr
@@ -221,16 +225,128 @@ ENTRY(__clear_user)
 ENDPROC(__clear_user)
 EXPORT_SYMBOL(__clear_user)
 
+
+#ifdef CONFIG_CPU_CHERI
+ENTRY(__asm_cheri_user_memcpy)
+
+	/* enable access to user memory */
+	li t6, SR_SUM
+	csrs CSR_STATUS, t6
+
+	/* get end address */
+	add a3, a1, a2
+
+	/* check if src and dst have same alignment */
+	andi t0, a0, CHERICAP_SIZE - 1
+	andi t1, a1, CHERICAP_SIZE - 1
+	/* if not same alignment then jump next */
+	bne t0, t1, 3f
+
+	/* align up src up */
+	addi t0, a1, CHERICAP_SIZE - 1
+	andi t0, t0, ~(CHERICAP_SIZE - 1)
+	/* get aligned end address */
+	andi t1, a3, ~(CHERICAP_SIZE - 1)
+	/*
+	 * a3: terminal address of source region
+	 * t0: lowest CHERICAP_SIZE-aligned address in source
+	 * t1: highest CHERICAP_SIZE-aligned address in source
+	 */
+	bgeu t0, t1, 3f
+	bltu a1, t0, 5f
+1:
+	/* cheri copy */
+#if 0
+.option push
+.option capmode
+	cfromptr ca0, ddc, a0
+	cfromptr ca1, ddc, a1
+2:
+	fixup clc, ct2, (ca1), 10f
+	fixup csc, ct2, (ca0), 10f
+	cincoffset ca1, ca1, CHERICAP_SIZE
+	cincoffset ca0, ca0, CHERICAP_SIZE
+.option pop
+#else
+2:
+	fixup lc, ct2, (a1), 10f
+	fixup sc, ct2, (a0), 10f
+#endif
+	addi a1, a1, CHERICAP_SIZE
+	addi a0, a0, CHERICAP_SIZE
+	bltu a1, t1, 2b
+3:
+	bltu a1, a3, 6f
+
+4:
+	/* Disable access to user memory */
+	csrc CSR_STATUS, t6
+	li a0, 0
+	ret
+5: /* Edge case: unalignment */
+	fixup lbu, t2, (a1), 10f
+	fixup sb, t2, (a0), 10f
+	addi a1, a1, 1
+	addi a0, a0, 1
+	bltu a1, t0, 5b
+	j 1b
+6: /* Edge case: remainder */
+	fixup lbu, t2, (a1), 10f
+	fixup sb, t2, (a0), 10f
+	addi a1, a1, 1
+	addi a0, a0, 1
+	bltu a1, a3, 6b
+	j 4b
+ENDPROC(__asm_cheri_user_memcpy)
+
+/* aligned version */
+ENTRY(__asm_cheri_user_memcpy_aligned)
+
+	/* enable access to user memory */
+	li t6, SR_SUM
+	csrs CSR_STATUS, t6
+
+	beqz a2, 2f
+	and a3, a2, -CHERICAP_SIZE
+	add a3, a1, a3
+#if 0
+.option push
+.option capmode
+	cfromptr ca0, ddc, a0
+	cfromptr ca1, ddc, a1
+1:
+	fixup clc, ct0, (ca1), 10f
+	fixup csc, ct0, (ca0), 10f
+	cincoffset ca1, ca1, CHERICAP_SIZE
+	cincoffset ca0, ca0, CHERICAP_SIZE
+.option pop
+#else
+1:
+	fixup lc, ct0, (a1), 10f
+	fixup sc, ct0, (a0), 10f
+	addi a1, a1, CHERICAP_SIZE
+	addi a0, a0, CHERICAP_SIZE
+#endif
+	bne a1, a3, 1b
+2:
+	/* disable access to user memory */
+	csrc CSR_STATUS, t6
+	li a0, 0
+	jr ra
+END(__asm_cheri_user_memcpy_aligned)
+
+#endif
+
 	.section .fixup,"ax"
 	.balign 4
 	/* Fixup code for __copy_user(10) and __clear_user(11) */
 10:
 	/* Disable access to user memory */
-	csrs CSR_STATUS, t6
+	csrc CSR_STATUS, t6
 	mv a0, t5
 	ret
 11:
-	csrs CSR_STATUS, t6
+	csrc CSR_STATUS, t6
 	mv a0, a1
 	ret
 	.previous

@@ -18,6 +18,11 @@ obj-vdso = $(patsubst %, %.o, $(vdso-syms)) note.o
 
 ccflags-y := -fno-stack-protector
 
+ifeq ($(CONFIG_RISCV_CHERI),y)
+KBUILD_CFLAGS += -mabi=l64pc128
+KBUILD_AFLAGS += -mabi=l64pc128
+endif
+
 ifneq ($(c-gettimeofday-y),)
   CFLAGS_vgettimeofday.o += -fPIC -include $(c-gettimeofday-y)
 endif
@@ -28,6 +33,10 @@ obj-vdso := $(addprefix $(obj)/, $(obj-vdso))
 
 obj-y += vdso.o
 CPPFLAGS_vdso.lds += -P -C -U$(ARCH)
+
+ifeq ($(CONFIG_RISCV_CHERI),y)
+AFLAGS_REMOVE_vdso.o = -mabi=l64pc128
+endif
 
 # Disable -pg to prevent insert call site
 CFLAGS_REMOVE_vgettimeofday.o = $(CC_FLAGS_FTRACE) -Os

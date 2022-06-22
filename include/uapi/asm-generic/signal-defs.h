@@ -80,7 +80,12 @@
 
 #ifndef __ASSEMBLY__
 typedef void __signalfn_t(int);
+#ifndef __CHERI__
 typedef __signalfn_t __user *__sighandler_t;
+#else
+typedef __signalfn_t __user *__lsighandler_t;
+typedef __signalfn_t __user * __capability __sighandler_t;
+#endif
 
 typedef void __restorefn_t(void);
 typedef __restorefn_t __user *__sigrestore_t;

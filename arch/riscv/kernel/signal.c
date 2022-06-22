@@ -17,6 +17,10 @@
 #include <asm/switch_to.h>
 #include <asm/csr.h>
 
+#ifdef CONFIG_CPU_CHERI
+#include <linux/cheri.h>
+#endif
+
 extern u32 __user_rt_sigreturn[2];
 
 #define DEBUG_SIG 0
@@ -88,7 +92,11 @@ static long restore_sigcontext(struct pt_regs *regs,
 {
 	long err;
 	/* sc_regs is structured the same as the start of pt_regs */
+#ifndef CONFIG_CPU_CHERI
 	err = __copy_from_user(regs, &sc->sc_regs, sizeof(sc->sc_regs));
+#else
+	err = __cheri_copy_from_user(regs, &sc->sc_regs, sizeof(sc->sc_regs));
+#endif
 	/* Restore the floating-point state. */
 	if (has_fpu())
 		err |= restore_fp_state(regs, &sc->sc_fpregs);
@@ -105,7 +113,7 @@ SYSCALL_DEFINE0(rt_sigreturn)
 	/* Always make any pending restarted system calls return -EINTR */
 	current->restart_block.fn = do_no_restart_syscall;
 
-	frame = (struct rt_sigframe __user *)regs->sp;
+	frame = (struct rt_sigframe __user *)(uintptr_t)regs->sp;
 
 	if (!access_ok(frame, sizeof(*frame)))
 		goto badframe;
@@ -129,7 +137,7 @@ badframe:
 		pr_info_ratelimited(
 			"%s[%d]: bad frame in %s: frame=%p pc=%p sp=%p\n",
 			task->comm, task_pid_nr(task), __func__,
-			frame, (void *)regs->epc, (void *)regs->sp);
+			frame, (uintptr_t)regs->epc, (uintptr_t)regs->sp);
 	}
 	force_sig(SIGSEGV);
 	return 0;
@@ -140,8 +148,13 @@ static long setup_sigcontext(struct rt_sigframe __user *frame,
 {
 	struct sigcontext __user *sc = &frame->uc.uc_mcontext;
 	long err;
+#ifndef CONFIG_CPU_CHERI
 	/* sc_regs is structured the same as the start of pt_regs */
 	err = __copy_to_user(&sc->sc_regs, regs, sizeof(sc->sc_regs));
+#else
+	/* sc_regs is structured the same as the start of pt_regs */
+	err = __cheri_copy_to_user(&sc->sc_regs, regs, sizeof(sc->sc_regs));
+#endif
 	/* Save the floating-point state. */
 	if (has_fpu())
 		err |= save_fp_state(regs, &sc->sc_fpregs);
@@ -194,8 +207,13 @@ static int setup_rt_frame(struct ksignal *ksig, sigset_t *set,
 
 	/* Set up to return from userspace. */
 #ifdef CONFIG_MMU
+#ifdef CONFIG_CPU_CHERI
+	regs->ra = cheri_void_code(VDSO_SYMBOL(
+		current->mm->context.vdso, rt_sigreturn));
+#else
 	regs->ra = (unsigned long)VDSO_SYMBOL(
 		current->mm->context.vdso, rt_sigreturn);
+#endif
 #else
 	/*
 	 * For the nommu case we don't have a VDSO.  Instead we push two
@@ -214,11 +232,25 @@ static int setup_rt_frame(struct ksignal *ksig, sigset_t *set,
 	 * We always pass siginfo and mcontext, regardless of SA_SIGINFO,
 	 * since some things rely on this (e.g. glibc's debug/segfault.c).
 	 */
+#ifdef CONFIG_CPU_CHERI
+	if (cheri_gettag(ksig->ka.sa.sa_handler)) {
+		regs->epc = (register_t)ksig->ka.sa.sa_handler;
+	} else {
+		// FIXCHERI: find out why this happens
+		void *p = (void*)cheri_getaddress(ksig->ka.sa.sa_handler);
+		regs->epc = cheri_void_code(p);
+	}
+	regs->sp = cheri_void(regs->ddc, frame);
+	regs->a0 = (uintcap_t)ksig->sig;          /* a0: signal number */
+	regs->a1 = cheri_void(regs->ddc, &frame->info); /* a1: siginfo pointer */
+	regs->a2 = cheri_void(regs->ddc, &frame->uc);   /* a2: ucontext pointer */
+#else
 	regs->epc = (unsigned long)ksig->ka.sa.sa_handler;
 	regs->sp = (unsigned long)frame;
 	regs->a0 = ksig->sig;                     /* a0: signal number */
 	regs->a1 = (unsigned long)(&frame->info); /* a1: siginfo pointer */
 	regs->a2 = (unsigned long)(&frame->uc);   /* a2: ucontext pointer */
+#endif
 
 #if DEBUG_SIG
 	pr_info("SIG deliver (%s:%d): sig=%d pc=%p ra=%p sp=%p\n",

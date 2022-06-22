@@ -75,6 +75,10 @@
 #define EXC_LOAD_PAGE_FAULT	13
 #define EXC_STORE_PAGE_FAULT	15
 
+#ifdef CONFIG_CPU_CHERI
+#define EXC_CHERI		28
+#endif
+
 /* PMP configuration */
 #define PMP_R			0x01
 #define PMP_W			0x02
@@ -155,6 +159,17 @@
 # define RV_IRQ_TIMER	IRQ_S_TIMER
 # define RV_IRQ_EXT		IRQ_S_EXT
 #endif /* CONFIG_RISCV_M_MODE */
+
+#ifdef CONFIG_CPU_CHERI
+#if __has_feature(capabilities)
+#define	SCCSR_E			(1 << 0)
+#define	SCCSR_D			(1 << 1)
+#define	SCCSR_CAUSE_SHIFT	0
+#define	SCCSR_CAUSE_MASK	(0x1f << SCCSR_CAUSE_SHIFT)
+#define	SCCSR_CAP_IDX_SHIFT	5
+#define	SCCSR_CAP_IDX_MASK	(0x3f << SCCSR_CAP_IDX_SHIFT)
+#endif
+#endif
 
 /* IE/IP (Supervisor/Machine Interrupt Enable/Pending) flags */
 #define IE_SIE		(_AC(0x1, UL) << RV_IRQ_SOFT)
