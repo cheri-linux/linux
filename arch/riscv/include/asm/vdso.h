@@ -25,11 +25,16 @@
 #define __VVAR_PAGES    1
 
 #ifndef __ASSEMBLY__
+#ifndef __CHERI_PURE_CAPABILITY__
 #include <generated/vdso-offsets.h>
+#define VDSO_SYMBOL(base, name)							\
+	(void __user *)((unsigned long)(base) + __vdso_##name##_offset)
+#else
+#include <generated/vdso-cheri-offsets.h>
 
 #define VDSO_SYMBOL(base, name)							\
 	(void __user *)((unsigned long)(base) + __vdso_##name##_offset)
-
+#endif
 #endif /* CONFIG_MMU */
 
 #endif /* !__ASSEMBLY__ */

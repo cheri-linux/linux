@@ -124,9 +124,16 @@ vdso_install:
 
 ifeq ($(KBUILD_EXTMOD),)
 ifeq ($(CONFIG_MMU),y)
+ifeq ($(CONFIG_RISCV_CHERI), y)
 prepare: vdso_prepare
 vdso_prepare: prepare0
 	$(Q)$(MAKE) $(build)=arch/riscv/kernel/vdso include/generated/vdso-offsets.h
+	$(Q)$(MAKE) $(build)=arch/riscv/kernel/vdso-cheri include/generated/vdso-cheri-offsets.h
+else
+prepare: vdso_prepare
+vdso_prepare: prepare0
+	$(Q)$(MAKE) $(build)=arch/riscv/kernel/vdso include/generated/vdso-offsets.h
+endif
 endif
 endif
 
